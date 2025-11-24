@@ -1,2 +1,3 @@
 *.o
 tsp_ga
+tsp_bf
