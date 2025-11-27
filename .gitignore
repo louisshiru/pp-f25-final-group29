@@ -1,3 +1,5 @@
 *.o
 tsp_ga
 tsp_bf
+tsp_2opt
+tsp_lkh

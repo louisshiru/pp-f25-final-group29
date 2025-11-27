@@ -6,6 +6,9 @@
 #include <iostream>
 #include <numeric>
 #include <set>
+#include <string>
+#include <stdexcept>
+#include <chrono>
 
 GeneticAlgorithm::GeneticAlgorithm(const std::vector<City>& cities, int n_population, int n_generations, double crossover_per, double mutation_per)
     : cities(cities), n_population(n_population), n_generations(n_generations), crossover_per(crossover_per), mutation_per(mutation_per) {
@@ -184,20 +187,32 @@ void GeneticAlgorithm::run() {
     std::cout << std::endl;
 }
 
-int main() {
-    Dataloader dl;
-    
-    int n_population = 500;
-    int n_generations = 1000;
+int main(int argc, char** argv) {
+    const std::string dataset = (argc > 1) ? argv[1] : "qa194.tsp";
+
+    int n_population = 1000;
+    int n_generations = 5000;
     double crossover_per = 0.8;
     double mutation_per = 0.2;
 
-    std::cout << "Starting Genetic Algorithm for TSP..." << std::endl;
-    std::cout << "Population: " << n_population << ", Generations: " << n_generations << std::endl;
-    std::cout << "Crossover: " << crossover_per << ", Mutation: " << mutation_per << std::endl;
+    try {
+        Dataloader dl(dataset);
 
-    GeneticAlgorithm ga(dl.cities, n_population, n_generations, crossover_per, mutation_per);
-    ga.run();
+        std::cout << "Starting Genetic Algorithm for TSP (" << dataset << ")..." << std::endl;
+        std::cout << "Population: " << n_population << ", Generations: " << n_generations << std::endl;
+        std::cout << "Crossover: " << crossover_per << ", Mutation: " << mutation_per << std::endl;
+
+        GeneticAlgorithm ga(dl.cities, n_population, n_generations, crossover_per, mutation_per);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        ga.run();
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+        std::cout << "Time: " << elapsed.count() << " s" << std::endl;
+    } catch (const std::exception& ex) {
+        std::cerr << "Failed to load dataset '" << dataset << "': " << ex.what() << std::endl;
+        return 1;
+    }
 
     return 0;
 }

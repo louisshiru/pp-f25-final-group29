@@ -18,13 +18,20 @@ make
 ### Run Genetic Algorithm
 Run the genetic algorithm approach (Approximate Answer):
 ```bash
-make tsp_ga && ./tsp_ga
+make tsp_ga && ./tsp_ga # Default use qa194.tsp (Qatar - 194 cities)
+make tsp_ga && ./tsp_ga mu1979.tsp # Select mu1979.tsp  (Oman - 1,979 Cities)
+```
+
+### Run 2-opt 
+Run the brute force approach (Correct/Exact Answer):
+```bash
+make tsp_2opt && ./tsp_bf
 ```
 
 ### Run Brute Force
 Run the brute force approach (Correct/Exact Answer):
 ```bash
-make tsp_bf && ./tsp_bf
+make tsp_lkh && ./tsp_bf
 ```
 
 ### Clean
@@ -35,5 +42,8 @@ make clean
 
 
 ### 其他 
+
+Dataset from:
+[Solving TSPs](https://www.math.uwaterloo.ca/tsp/world/countries.html)
 
 可以搜尋關鍵字 `[TODO]` 應該是優化這兩個地方就可以了 ?????
