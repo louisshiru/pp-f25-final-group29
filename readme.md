@@ -22,6 +22,13 @@ make tsp_ga && ./tsp_ga # Default use qa194.tsp (Qatar - 194 cities)
 make tsp_ga && ./tsp_ga mu1979.tsp # Select mu1979.tsp  (Oman - 1,979 Cities)
 ```
 
+### Run Genetic Algorithm + 2opt
+Run the genetic algorithm approach (Approximate Answer):
+```bash
+make tsp_ga2opt && ./tsp_ga2opt # Default use qa194.tsp (Qatar - 194 cities)
+make tsp_ga2opt && ./tsp_ga2opt mu1979.tsp # Select mu1979.tsp  (Oman - 1,979 Cities)
+```
+
 ### Run 2-opt 
 Run the brute force approach (Correct/Exact Answer):
 ```bash

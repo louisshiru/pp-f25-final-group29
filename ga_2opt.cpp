@@ -30,12 +30,14 @@ double total_distance(const std::vector<int>& route, const std::vector<City>& ci
     return total;
 }
 
-std::vector<int> two_opt(std::vector<int> route, const std::vector<City>& cities) {
+// A capped 2-opt: at most `max_passes` improvement rounds to avoid long runtimes on large instances.
+std::vector<int> two_opt(std::vector<int> route, const std::vector<City>& cities, int max_passes) {
     const size_t n = route.size();
     if (n < 4) return route;
 
     bool improved = true;
-    while (improved) {
+    int passes = 0;
+    while (improved && passes < max_passes) {
         improved = false;
         for (size_t i = 1; i < n - 1 && !improved; ++i) {
             for (size_t k = i + 1; k < n && !improved; ++k) {
@@ -52,6 +54,7 @@ std::vector<int> two_opt(std::vector<int> route, const std::vector<City>& cities
                 }
             }
         }
+        ++passes;
     }
 
     return route;
@@ -64,12 +67,17 @@ struct Individual {
 
 class GA2Opt {
 public:
-    GA2Opt(const std::vector<City>& cities, int population, int generations, double crossover_rate, double mutation_rate)
+    GA2Opt(const std::vector<City>& cities, int population, int generations, double crossover_rate, double mutation_rate, double init_two_opt_prob = 0.25,
+           double offspring_two_opt_prob = 0.15, int two_opt_passes_init = 3, int two_opt_passes_offspring = 2)
         : cities_(cities),
           n_population_(population),
           n_generations_(generations),
           crossover_rate_(crossover_rate),
           mutation_rate_(mutation_rate),
+          init_two_opt_prob_(init_two_opt_prob),         // probability to refine an initial individual
+          offspring_two_opt_prob_(offspring_two_opt_prob),    // probability to refine a child each generation
+          two_opt_passes_init_(two_opt_passes_init),          // cap 2-opt passes for initial population
+          two_opt_passes_offspring_(two_opt_passes_offspring),     // cap 2-opt passes for offspring
           rng_(std::random_device{}()) {
         population_ = initial_population();
     }
@@ -132,6 +140,10 @@ private:
     int n_generations_;
     double crossover_rate_;
     double mutation_rate_;
+    double init_two_opt_prob_;
+    double offspring_two_opt_prob_;
+    int two_opt_passes_init_;
+    int two_opt_passes_offspring_;
     std::vector<Individual> population_;
     std::mt19937 rng_;
 
@@ -154,7 +166,10 @@ private:
         for (int i = 0; i < n_population_; ++i) {
             std::vector<int> chrom = base;
             std::shuffle(chrom.begin(), chrom.end(), rng_);
-            chrom = two_opt(chrom, cities_); // Local improvement on startup
+            // Randomly decide whether to run 2-opt on this individual to keep runtime manageable.
+            if (random_real() < init_two_opt_prob_) {
+                chrom = two_opt(chrom, cities_, two_opt_passes_init_);
+            }
             const double dist = total_distance(chrom, cities_);
             pop.push_back({chrom, dist});
         }
@@ -237,7 +252,10 @@ private:
 
     void append_with_mutation_and_local_search(std::vector<Individual>& pop, Individual child) {
         mutate(child.chromosome);
-        child.chromosome = two_opt(child.chromosome, cities_);
+        // Apply 2-opt only on a subset of offspring to balance quality and speed.
+        if (random_real() < offspring_two_opt_prob_) {
+            child.chromosome = two_opt(child.chromosome, cities_, two_opt_passes_offspring_);
+        }
         child.distance = total_distance(child.chromosome, cities_);
         pop.push_back(std::move(child));
     }
@@ -245,14 +263,19 @@ private:
 
 int main(int argc, char** argv) {
     const std::string dataset = (argc > 1) ? argv[1] : "qa194.tsp";
-    const int n_population = 500;   // Slightly smaller because 2-opt is heavier
-    const int n_generations = 2000; // You can tune these values as needed
+    const int n_population = 100;   // Slightly smaller because 2-opt is heavier
+    const int n_generations = 5000; // You can tune these values as needed
     const double crossover_rate = 0.8;
     const double mutation_rate = 0.2;
+    const double init_two_opt_prob = 1.0;         // probability to refine an initial individual
+    const double offspring_two_opt_prob = 0.5;    // probability to refine a child each generation
+    const int two_opt_passes_init = 100;          // cap 2-opt passes for initial population
+    const int two_opt_passes_offspring = 50;     // cap 2-opt passes for offspring
 
     try {
         Dataloader dl(dataset);
-        GA2Opt solver(dl.cities, n_population, n_generations, crossover_rate, mutation_rate);
+        GA2Opt solver(dl.cities, n_population, n_generations, crossover_rate, mutation_rate, 
+                      init_two_opt_prob, offspring_two_opt_prob, two_opt_passes_init, two_opt_passes_offspring);
 
         std::cout << "Starting GA + 2-opt for TSP (" << dataset << ")..." << std::endl;
         auto start = std::chrono::high_resolution_clock::now();

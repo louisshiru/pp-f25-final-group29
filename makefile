@@ -21,7 +21,12 @@ ACO_SRC := aco.cpp dataloader.cpp
 ACO_OBJ := $(ACO_SRC:.cpp=.o)
 ACO_TARGET := tsp_aco
 
-all: $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET) $(ACO_TARGET)
+# GA + 2-opt Hybrid
+GA2_SRC := ga_2opt.cpp dataloader.cpp
+GA2_OBJ := $(GA2_SRC:.cpp=.o)
+GA2_TARGET := tsp_ga2opt
+
+all: $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET) $(ACO_TARGET) $(GA2_TARGET)
 
 $(GA_TARGET): $(GA_OBJ)
 	g++ $(C_FLAG) -o $@ $^
@@ -35,8 +40,11 @@ $(LKH_TARGET): $(LKH_OBJ)
 $(ACO_TARGET): $(ACO_OBJ)
 	g++ $(C_FLAG) -o $@ $^
 
+$(GA2_TARGET): $(GA2_OBJ)
+	g++ $(C_FLAG) -o $@ $^
+
 %.o: %.cpp
 	g++ $(C_FLAG) -c $< -o $@
 
 clean:
-	rm -f *.o $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET) $(ACO_TARGET)
+	rm -f *.o $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET) $(ACO_TARGET) $(GA2_TARGET)
