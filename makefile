@@ -16,7 +16,12 @@ LKH_SRC := lkh.cpp dataloader.cpp
 LKH_OBJ := $(LKH_SRC:.cpp=.o)
 LKH_TARGET := tsp_lkh
 
-all: $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET)
+# ACO
+ACO_SRC := aco.cpp dataloader.cpp
+ACO_OBJ := $(ACO_SRC:.cpp=.o)
+ACO_TARGET := tsp_aco
+
+all: $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET) $(ACO_TARGET)
 
 $(GA_TARGET): $(GA_OBJ)
 	g++ $(C_FLAG) -o $@ $^
@@ -27,8 +32,11 @@ $(2OPT_TARGET): $(2OPT_OBJ)
 $(LKH_TARGET): $(LKH_OBJ)
 	g++ $(C_FLAG) -o $@ $^
 
+$(ACO_TARGET): $(ACO_OBJ)
+	g++ $(C_FLAG) -o $@ $^
+
 %.o: %.cpp
 	g++ $(C_FLAG) -c $< -o $@
 
 clean:
-	rm -f *.o $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET)
+	rm -f *.o $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET) $(ACO_TARGET)
