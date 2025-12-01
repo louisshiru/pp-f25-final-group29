@@ -6,6 +6,8 @@ This project aims to solve the Traveling Salesman Problem (TSP) using a Genetic 
 We provide two solvers:
 1.  **Genetic Algorithm (`tsp_ga`)**: A heuristic approach to find an approximate solution efficiently.
 2.  **Brute Force (`tsp_bf`)**: An exact method to find the optimal solution, used for verification.
+3.  **GA + 2-opt (`tsp_ga2opt`)**: GA with local 2-opt refinement.
+4.  **GA + 2-opt (OpenMP) (`tsp_ga2opt_omp`)**: Parallelized GA + 2-opt using OpenMP.
 
 ## Usage
 
@@ -23,10 +25,17 @@ make tsp_ga && ./tsp_ga mu1979.tsp # Select mu1979.tsp  (Oman - 1,979 Cities)
 ```
 
 ### Run Genetic Algorithm + 2opt
-Run the genetic algorithm approach (Approximate Answer):
+Run the genetic algorithm approach with local search:
 ```bash
 make tsp_ga2opt && ./tsp_ga2opt # Default use qa194.tsp (Qatar - 194 cities)
 make tsp_ga2opt && ./tsp_ga2opt mu1979.tsp # Select mu1979.tsp  (Oman - 1,979 Cities)
+```
+
+### Run Genetic Algorithm + 2opt (OpenMP)
+Parallel version (requires OpenMP-capable compiler):
+```bash
+make tsp_ga2opt_omp && ./tsp_ga2opt_omp # Default use qa194.tsp (Qatar - 194 cities)
+make tsp_ga2opt_omp && ./tsp_ga2opt_omp mu1979.tsp # Select mu1979.tsp  (Oman - 1,979 Cities)
 ```
 
 ### Run 2-opt 
