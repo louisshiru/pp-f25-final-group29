@@ -57,7 +57,7 @@ std::vector<int> two_opt(const std::vector<int>& initial_route, const std::vecto
 }
 
 int main(int argc, char** argv) {
-    const std::string dataset = (argc > 1) ? argv[1] : "qa194.tsp";
+    const std::string dataset = (argc > 1) ? argv[1] : "za929.tsp";
 
     try {
         Dataloader dl(dataset);

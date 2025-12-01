@@ -161,7 +161,7 @@ void ACO::run() {
 }
 
 int main(int argc, char** argv) {
-    const std::string dataset = (argc > 1) ? argv[1] : "qa194.tsp";
+    const std::string dataset = (argc > 1) ? argv[1] : "za929.tsp";
 
     // ACO Parameters
     int num_ants = 30; // Can be tuned
