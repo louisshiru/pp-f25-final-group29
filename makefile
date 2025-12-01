@@ -26,6 +26,10 @@ GA2_SRC := ga_2opt.cpp dataloader.cpp
 GA2_OBJ := $(GA2_SRC:.cpp=.o)
 GA2_TARGET := tsp_ga2opt
 
+GA2_OMP_SRC := ga_2opt_omp.cpp dataloader.cpp
+GA2_OMP_OBJ := $(GA2_OMP_SRC:.cpp=.o)
+GA2_OMP_TARGET := tsp_ga2opt_omp
+
 # GA + 2-opt cuda
 GA2_CUDA_SRC := dataloader.cpp
 GA2_CUDA_CU := ga_2opt_cuda.cu
@@ -33,7 +37,7 @@ GA2_CUDA_OBJ := $(GA2_CUDA_SRC:.cpp=.o) $(GA2_CUDA_CU:.cu=_cu.o)
 GA2_CUDA_TARGET := tsp_ga2opt_cuda
 GA2_CUDA_FLAG := -Ilib
 
-all: $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET) $(ACO_TARGET) $(GA2_TARGET) $(GA2_CUDA_TARGET)
+all: $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET) $(ACO_TARGET) $(GA2_TARGET) $(GA2_OMP_TARGET) $(GA2_CUDA_TARGET)
 
 $(GA_TARGET): $(GA_OBJ)
 	g++ $(C_FLAG) -o $@ $^
@@ -50,6 +54,9 @@ $(ACO_TARGET): $(ACO_OBJ)
 $(GA2_TARGET): $(GA2_OBJ)
 	g++ $(C_FLAG) -o $@ $^
 
+$(GA2_OMP_TARGET): $(GA2_OMP_OBJ)
+	g++ $(C_FLAG) -o $@ $^
+
 $(GA2_CUDA_TARGET): $(GA2_CUDA_OBJ) 
 	nvcc $(GA2_CUDA_FLAG) -o $@ $^
 
@@ -60,4 +67,4 @@ $(GA2_CUDA_TARGET): $(GA2_CUDA_OBJ)
 	g++ $(C_FLAG) -c $< -o $@
 
 clean:
-	rm -f *.o $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET) $(ACO_TARGET) $(GA2_TARGET) $(GA2_CUDA_TARGET)
+	rm -f *.o $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET) $(ACO_TARGET) $(GA2_TARGET) $(GA2_OMP_TARGET) $(GA2_CUDA_TARGET)
