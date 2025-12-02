@@ -6,3 +6,4 @@ tsp_aco
 tsp_ga2opt
 tsp_ga2opt_cuda
 ga_2opt
+.vscode/
