@@ -83,6 +83,7 @@ public:
     }
 
     void run() {
+        auto start_time = std::chrono::high_resolution_clock::now();
         for (int gen = 0; gen < n_generations_; ++gen) {
             const std::vector<double> probs = fitness_prob(population_);
             std::vector<Individual> next_population;
@@ -118,7 +119,10 @@ public:
                                          ->distance;
 
             if (gen % 100 == 0 || gen == n_generations_ - 1) {
-                std::cout << "Generation " << gen << " Best Distance: " << best_dist << std::endl;
+                auto current_time = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> elapsed = current_time - start_time;
+                start_time = current_time;
+                std::cout << "Generation " << gen << " Best Distance: " << best_dist << " Time: " << elapsed.count() << "s" << std::endl;
             }
         }
 
@@ -263,8 +267,8 @@ private:
 
 int main(int argc, char** argv) {
     const std::string dataset = (argc > 1) ? argv[1] : "za929.tsp";
-    const int n_population = 100;   // Slightly smaller because 2-opt is heavier
-    const int n_generations = 5000; // You can tune these values as needed
+    const int n_population = 1000;   // Slightly smaller because 2-opt is heavier
+    const int n_generations = 1000; // You can tune these values as needed
     const double crossover_rate = 0.8;
     const double mutation_rate = 0.2;
     const double init_two_opt_prob = 1.0;         // probability to refine an initial individual
