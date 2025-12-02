@@ -10,28 +10,45 @@
 #include <string>
 #include <vector>
 
-// Simple 2-opt local search used as a GA refinement step.
-// Given a permutation of city indices, it keeps swapping two edges
-// whenever the total tour length can be shortened.
-double dist_city(const City& a, const City& b) {
-    const double dx = a.x - b.x;
-    const double dy = a.y - b.y;
-    return std::sqrt(dx * dx + dy * dy);
-}
+// Dense distance matrix keeps lookups cache-friendly for GA + 2-opt,
+// so we only pay the sqrt cost once during construction.
+class DistanceMatrix {
+public:
+    explicit DistanceMatrix(const std::vector<City>& cities)
+        : n_(cities.size()), data_(n_ * n_, 0.0) {
+        for (size_t i = 0; i < n_; ++i) {
+            for (size_t j = i + 1; j < n_; ++j) {
+                const double dx = cities[i].x - cities[j].x;
+                const double dy = cities[i].y - cities[j].y;
+                const double d = std::sqrt(dx * dx + dy * dy);
+                data_[i * n_ + j] = d;
+                data_[j * n_ + i] = d;
+            }
+        }
+    }
 
-double total_distance(const std::vector<int>& route, const std::vector<City>& cities) {
+    double operator()(int i, int j) const {
+        return data_[static_cast<size_t>(i) * n_ + static_cast<size_t>(j)];
+    }
+
+    size_t size() const { return n_; }
+
+private:
+    size_t n_;
+    std::vector<double> data_;
+};
+
+double total_distance(const std::vector<int>& route, const DistanceMatrix& dist) {
     double total = 0.0;
     const size_t n = route.size();
     for (size_t i = 0; i < n; ++i) {
-        const City& c1 = cities[route[i]];
-        const City& c2 = cities[route[(i + 1) % n]];
-        total += dist_city(c1, c2);
+        total += dist(route[i], route[(i + 1) % n]);
     }
     return total;
 }
 
 // A capped 2-opt: at most `max_passes` improvement rounds to avoid long runtimes on large instances.
-std::vector<int> two_opt(std::vector<int> route, const std::vector<City>& cities, int max_passes) {
+std::vector<int> two_opt(std::vector<int> route, const DistanceMatrix& dist, int max_passes) {
     const size_t n = route.size();
     if (n < 4) return route;
 
@@ -43,10 +60,10 @@ std::vector<int> two_opt(std::vector<int> route, const std::vector<City>& cities
             for (size_t k = i + 1; k < n && !improved; ++k) {
                 const size_t next = (k + 1) % n;
                 const double delta =
-                    dist_city(cities[route[i - 1]], cities[route[k]]) +
-                    dist_city(cities[route[i]], cities[route[next]]) -
-                    dist_city(cities[route[i - 1]], cities[route[i]]) -
-                    dist_city(cities[route[k]], cities[route[next]]);
+                    dist(route[i - 1], route[k]) +
+                    dist(route[i], route[next]) -
+                    dist(route[i - 1], route[i]) -
+                    dist(route[k], route[next]);
 
                 if (delta < -1e-9) {
                     std::reverse(route.begin() + static_cast<long>(i), route.begin() + static_cast<long>(k) + 1);
@@ -70,6 +87,7 @@ public:
     GA2Opt(const std::vector<City>& cities, int population, int generations, double crossover_rate, double mutation_rate, double init_two_opt_prob = 0.25,
            double offspring_two_opt_prob = 0.15, int two_opt_passes_init = 3, int two_opt_passes_offspring = 2)
         : cities_(cities),
+          dist_matrix_(cities),
           n_population_(population),
           n_generations_(generations),
           crossover_rate_(crossover_rate),
@@ -140,6 +158,7 @@ public:
 
 private:
     std::vector<City> cities_;
+    DistanceMatrix dist_matrix_;
     int n_population_;
     int n_generations_;
     double crossover_rate_;
@@ -172,9 +191,9 @@ private:
             std::shuffle(chrom.begin(), chrom.end(), rng_);
             // Randomly decide whether to run 2-opt on this individual to keep runtime manageable.
             if (random_real() < init_two_opt_prob_) {
-                chrom = two_opt(chrom, cities_, two_opt_passes_init_);
+                chrom = two_opt(chrom, dist_matrix_, two_opt_passes_init_);
             }
-            const double dist = total_distance(chrom, cities_);
+            const double dist = total_distance(chrom, dist_matrix_);
             pop.push_back({chrom, dist});
         }
         return pop;
@@ -258,9 +277,9 @@ private:
         mutate(child.chromosome);
         // Apply 2-opt only on a subset of offspring to balance quality and speed.
         if (random_real() < offspring_two_opt_prob_) {
-            child.chromosome = two_opt(child.chromosome, cities_, two_opt_passes_offspring_);
+            child.chromosome = two_opt(child.chromosome, dist_matrix_, two_opt_passes_offspring_);
         }
-        child.distance = total_distance(child.chromosome, cities_);
+        child.distance = total_distance(child.chromosome, dist_matrix_);
         pop.push_back(std::move(child));
     }
 };
@@ -272,7 +291,7 @@ int main(int argc, char** argv) {
     const double crossover_rate = 0.8;
     const double mutation_rate = 0.2;
     const double init_two_opt_prob = 1.0;         // probability to refine an initial individual
-    const double offspring_two_opt_prob = 0.5;    // probability to refine a child each generation
+    const double offspring_two_opt_prob = 0.1;    // probability to refine a child each generation
     const int two_opt_passes_init = 100;          // cap 2-opt passes for initial population
     const int two_opt_passes_offspring = 50;     // cap 2-opt passes for offspring
 
