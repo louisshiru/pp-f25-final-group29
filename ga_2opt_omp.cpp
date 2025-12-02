@@ -97,55 +97,68 @@ public:
     }
 
     void run() {
-        for (int gen = 0; gen < n_generations_; ++gen) {
-            const std::vector<double> cumulative_probs = fitness_cumulative(population_);
-            std::vector<Individual> next_population(n_population_);
+        // Reuse buffers across generations to reduce allocations.
+        std::vector<double> cumulative_probs;
+        std::vector<Individual> next_population;
 
-            // Elitism: keep the current best individual.
-            const auto best_it = std::min_element(
-                population_.begin(), population_.end(),
-                [](const Individual& a, const Individual& b) { return a.distance < b.distance; });
-            next_population[0] = *best_it;
+#pragma omp parallel
+        {
+            for (int gen = 0; gen < n_generations_; ++gen) {
+#pragma omp single
+                {
+                    cumulative_probs = fitness_cumulative(population_);
+                    next_population.assign(static_cast<size_t>(n_population_), Individual{});
 
-            // Parallel offspring generation: each thread works on disjoint slots to avoid contention.
-#pragma omp parallel for schedule(static)
-            for (int idx = 1; idx < n_population_; idx += 2) {
-                std::mt19937& rng = thread_rng();
-
-                const Individual p1 = roulette_wheel(population_, cumulative_probs, rng);
-                const Individual p2 = roulette_wheel(population_, cumulative_probs, rng);
-
-                std::vector<int> child1_route;
-                std::vector<int> child2_route;
-                if (random_real(rng) < crossover_rate_) {
-                    auto children = crossover(p1.chromosome, p2.chromosome, rng);
-                    child1_route = std::move(children.first);
-                    child2_route = std::move(children.second);
-                } else {
-                    child1_route = p1.chromosome;
-                    child2_route = p2.chromosome;
+                    // Elitism: keep the current best individual.
+                    const auto best_it = std::min_element(
+                        population_.begin(), population_.end(),
+                        [](const Individual& a, const Individual& b) { return a.distance < b.distance; });
+                    next_population[0] = *best_it;
                 }
 
-                Individual child1{std::move(child1_route), 0.0};
-                child1 = mutate_and_local_search(std::move(child1), rng, offspring_two_opt_prob_, two_opt_passes_offspring_);
-                next_population[idx] = std::move(child1);
+                // Parallel offspring generation: each thread works on disjoint slots to avoid contention.
+#pragma omp for schedule(dynamic, 2)
+                for (int idx = 1; idx < n_population_; idx += 2) {
+                    std::mt19937& rng = thread_rng();
 
-                if (idx + 1 < n_population_) {
-                    Individual child2{std::move(child2_route), 0.0};
-                    child2 = mutate_and_local_search(std::move(child2), rng, offspring_two_opt_prob_, two_opt_passes_offspring_);
-                    next_population[idx + 1] = std::move(child2);
+                    const Individual p1 = roulette_wheel(population_, cumulative_probs, rng);
+                    const Individual p2 = roulette_wheel(population_, cumulative_probs, rng);
+
+                    std::vector<int> child1_route;
+                    std::vector<int> child2_route;
+                    if (random_real(rng) < crossover_rate_) {
+                        auto children = crossover(p1.chromosome, p2.chromosome, rng);
+                        child1_route = std::move(children.first);
+                        child2_route = std::move(children.second);
+                    } else {
+                        child1_route = p1.chromosome;
+                        child2_route = p2.chromosome;
+                    }
+
+                    Individual child1{std::move(child1_route), 0.0};
+                    child1 = mutate_and_local_search(std::move(child1), rng, offspring_two_opt_prob_, two_opt_passes_offspring_);
+                    next_population[idx] = std::move(child1);
+
+                    if (idx + 1 < n_population_) {
+                        Individual child2{std::move(child2_route), 0.0};
+                        child2 = mutate_and_local_search(std::move(child2), rng, offspring_two_opt_prob_, two_opt_passes_offspring_);
+                        next_population[idx + 1] = std::move(child2);
+                    }
                 }
-            }
 
-            population_.swap(next_population);
+#pragma omp single
+                {
+                    population_.swap(next_population);
 
-            const double best_dist = std::min_element(
-                                         population_.begin(), population_.end(),
-                                         [](const Individual& a, const Individual& b) { return a.distance < b.distance; })
-                                         ->distance;
+                    const double best_dist = std::min_element(
+                                                 population_.begin(), population_.end(),
+                                                 [](const Individual& a, const Individual& b) { return a.distance < b.distance; })
+                                                 ->distance;
 
-            if (gen % 100 == 0 || gen == n_generations_ - 1) {
-                std::cout << "Generation " << gen << " Best Distance: " << best_dist << std::endl;
+                    if (gen % 100 == 0 || gen == n_generations_ - 1) {
+                        std::cout << "Generation " << gen << " Best Distance: " << best_dist << std::endl;
+                    }
+                }
             }
         }
 
@@ -304,14 +317,14 @@ private:
 
 int main(int argc, char** argv) {
     const std::string dataset = (argc > 1) ? argv[1] : "qa194.tsp";
-    const int n_population = 100;   // Slightly smaller because 2-opt is heavier
-    const int n_generations = 20000; // You can tune these values as needed
+    const int n_population = 200;   // Slightly smaller because 2-opt is heavier
+    const int n_generations = 40000; // You can tune these values as needed
     const double crossover_rate = 0.8;
     const double mutation_rate = 0.3;
     const double init_two_opt_prob = 1.0;         // probability to refine an initial individual
-    const double offspring_two_opt_prob = 0.1;    // probability to refine a child each generation
+    const double offspring_two_opt_prob = 1.0;    // probability to refine a child each generation
     const int two_opt_passes_init = 100;          // cap 2-opt passes for initial population
-    const int two_opt_passes_offspring = 50;      // cap 2-opt passes for offspring
+    const int two_opt_passes_offspring = 2;      // cap 2-opt passes for offspring
 
     try {
         Dataloader dl(dataset);
