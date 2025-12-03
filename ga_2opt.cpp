@@ -266,7 +266,7 @@ private:
 };
 
 int main(int argc, char** argv) {
-    const std::string dataset = (argc > 1) ? argv[1] : "za929.tsp";
+    const std::string dataset = (argc > 1) ? argv[1] : "zi929.tsp";
     const int n_population = 1000;   // Slightly smaller because 2-opt is heavier
     const int n_generations = 1000; // You can tune these values as needed
     const double crossover_rate = 0.8;

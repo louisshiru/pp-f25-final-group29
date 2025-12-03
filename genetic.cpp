@@ -188,7 +188,7 @@ void GeneticAlgorithm::run() {
 }
 
 int main(int argc, char** argv) {
-    const std::string dataset = (argc > 1) ? argv[1] : "za929.tsp";
+    const std::string dataset = (argc > 1) ? argv[1] : "zi929.tsp";
 
     int n_population = 1000;
     int n_generations = 5000;

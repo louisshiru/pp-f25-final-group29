@@ -171,7 +171,7 @@ public:
 };
 
 int main(int argc, char** argv) {
-    const std::string dataset = (argc > 1) ? argv[1] : "za929.tsp";
+    const std::string dataset = (argc > 1) ? argv[1] : "zi929.tsp";
 
     try {
         Dataloader dl(dataset);
