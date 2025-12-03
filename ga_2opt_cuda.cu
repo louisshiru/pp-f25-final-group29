@@ -973,6 +973,62 @@ __global__ void ga2opt_cuda_kernel_no_2opt(GA2OptConfig cfg, const double* probs
     }
 }
 
+__global__ void ga2opt_mutate_kernel(GA2OptConfig cfg, unsigned int seed) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid >= cfg.n_population) return;
+    if (tid == 0) return;  // 保留 elitism 的個體不 mutate （如果你要保留 index 0）
+
+    unsigned int state = seed ^ (tid * 9781u + 1237u);
+    int* chrom = cfg.d_next_population + tid * cfg.n_cities;
+
+    // 單點 swap mutation（跟 host mutate_device 類似）
+    if (rand_real_device(state) < cfg.mutation_rate) {
+        int i = rand_int_device(state, 0, cfg.n_cities - 1);
+        int j = rand_int_device(state, 0, cfg.n_cities - 1);
+        int tmp = chrom[i];
+        chrom[i] = chrom[j];
+        chrom[j] = tmp;
+    }
+}
+
+__global__ void ga2opt_eval_distance_kernel(GA2OptConfig cfg, const City* d_cities) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid >= cfg.n_population) return;
+
+    int* chrom = cfg.d_next_population + tid * cfg.n_cities;
+    cfg.d_next_distances[tid] = d_total_distance(chrom, cfg.n_cities, d_cities);
+}
+
+__global__ void ga2opt_select_and_crossover_kernel(
+    GA2OptConfig cfg, const double* probs, const City* d_cities, unsigned int seed) {
+
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int idx1 = 1 + 2 * tid;
+    int idx2 = idx1 + 1;
+    if (idx1 >= cfg.n_population) return;
+
+    unsigned int state = seed ^ (tid * 9781u + 1u);
+    int p1_idx = roulette_device(cfg.n_population, probs, state);
+    int p2_idx = roulette_device(cfg.n_population, probs, state);
+
+    const int* p1 = cfg.d_population + p1_idx * cfg.n_cities;
+    const int* p2 = cfg.d_population + p2_idx * cfg.n_cities;
+
+    int* child1_ptr = cfg.d_next_population + idx1 * cfg.n_cities;
+    int* child2_ptr = (idx2 < cfg.n_population) ? cfg.d_next_population + idx2 * cfg.n_cities : nullptr;
+
+    if (rand_real_device(state) < cfg.crossover_rate) {
+        crossover_device(cfg, state, p1, p2, child1_ptr, child2_ptr);
+    } else {
+        // no crossover: just copy parents
+        for (int i = 0; i < cfg.n_cities; ++i) child1_ptr[i] = p1[i];
+        if (child2_ptr) {
+            const int* p2_only = cfg.d_population + p2_idx * cfg.n_cities;
+            for (int i = 0; i < cfg.n_cities; ++i) child2_ptr[i] = p2_only[i];
+        }
+    }
+    // 這裡「不做 mutation、不算距離」，讓 branch 減少
+}
 
 // Version 4: 2-opt on host, and other on GPU
 void ga2opt_run_cuda4(GA2OptConfig& cfg) {
@@ -1000,6 +1056,8 @@ void ga2opt_run_cuda4(GA2OptConfig& cfg) {
 
     // Copy cities to device (constant across generations)
     City* d_cities = nullptr;
+    double* d_probs = nullptr;
+    cudaMalloc(&d_probs, dist_bytes);
     cudaMalloc(&d_cities, (size_t)cfg.n_cities * sizeof(City));
     cudaMemcpy(d_cities, cfg.cities, (size_t)cfg.n_cities * sizeof(City), cudaMemcpyHostToDevice);
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -1008,8 +1066,6 @@ void ga2opt_run_cuda4(GA2OptConfig& cfg) {
         ga2opt_compute_fitness_prob(cfg, probs);
 
         // Copy fitness probabilities to device
-        double* d_probs = nullptr;
-        cudaMalloc(&d_probs, dist_bytes);
         cudaMemcpy(d_probs, probs, dist_bytes, cudaMemcpyHostToDevice);
  
         // Elitism on host: copy best individual to next_population[0]
@@ -1018,27 +1074,61 @@ void ga2opt_run_cuda4(GA2OptConfig& cfg) {
                        cfg.next_population + 0 * cfg.n_cities);
         cfg.next_distances[0] = cfg.distances[best_idx];
 
-        // Copy elite to device next population
-        cudaMemcpy(cfg.d_next_population, cfg.next_population, (size_t)cfg.n_cities * sizeof(int), cudaMemcpyHostToDevice);
-        cudaMemcpy(cfg.d_next_distances, cfg.next_distances, sizeof(double), cudaMemcpyHostToDevice);
+        // Copy elite to device next population (index 0)
+        cudaMemcpy(cfg.d_next_population, cfg.next_population,
+                   (size_t)cfg.n_cities * sizeof(int), cudaMemcpyHostToDevice);
+        cudaMemcpy(cfg.d_next_distances, cfg.next_distances,
+                   sizeof(double), cudaMemcpyHostToDevice);
 
-        unsigned int seed = (unsigned int)std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        unsigned int base_seed = (unsigned int)std::chrono::high_resolution_clock::now()
+                                     .time_since_epoch().count();
+
+        // 1) selection + crossover (fill indices 1..n_population-1 in d_next_population)
         int blockSizeOffspring = 256;
         int n_units = (cfg.n_population - 1 + 1) / 2; // ceil((n_population-1)/2)
         int gridSizeOffspring = (n_units + blockSizeOffspring - 1) / blockSizeOffspring;
-        ga2opt_cuda_kernel_no_2opt<<<gridSizeOffspring, blockSizeOffspring>>>(cfg, d_probs, d_cities, seed);
+        ga2opt_select_and_crossover_kernel<<<gridSizeOffspring, blockSizeOffspring>>>(
+            cfg, d_probs, d_cities, base_seed);
         err = cudaGetLastError();
         if (err != cudaSuccess) {
-            std::cerr << "Kernel launch failed: " << cudaGetErrorString(err) << std::endl;
+            std::cerr << "Select+crossover kernel failed: " << cudaGetErrorString(err) << std::endl;
             break;
         }
         cudaDeviceSynchronize();
         err = cudaGetLastError();
         if (err != cudaSuccess) {
-            std::cerr << "Memory failed: " << cudaGetErrorString(err) << std::endl;
+            std::cerr << "Select+crossover sync failed: " << cudaGetErrorString(err) << std::endl;
             break;
         }
-        cudaFree(d_probs);
+
+        // 2) mutation on d_next_population (keep elite at index 0)
+        int blockSizeMut = 256;
+        int gridSizeMut = (cfg.n_population + blockSizeMut - 1) / blockSizeMut;
+        ga2opt_mutate_kernel<<<gridSizeMut, blockSizeMut>>>(cfg, base_seed + 1337u);
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "Mutation kernel failed: " << cudaGetErrorString(err) << std::endl;
+            break;
+        }
+        cudaDeviceSynchronize();
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "Mutation sync failed: " << cudaGetErrorString(err) << std::endl;
+            break;
+        }
+        // 3) evaluate distances for all individuals in next population
+        ga2opt_eval_distance_kernel<<<gridSizeMut, blockSizeMut>>>(cfg, d_cities);
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "Eval-distance kernel failed: " << cudaGetErrorString(err) << std::endl;
+            break;
+        }
+        cudaDeviceSynchronize();
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "Eval-distance sync failed: " << cudaGetErrorString(err) << std::endl;
+            break;
+        }
 
         // Copy updated populations and distances back to host
         cudaMemcpy(cfg.next_population, cfg.d_next_population, pop_bytes, cudaMemcpyDeviceToHost);
@@ -1054,7 +1144,6 @@ void ga2opt_run_cuda4(GA2OptConfig& cfg) {
         cfg.next_distances = temp_dist;
 
         // Host-side 2-opt refinement using OpenMP on all individuals
-        // GA 部分已在 GPU 完成，這裡只針對整個族群做一次 2-opt
         #pragma omp parallel for schedule(guided)
         for (int i = 0; i < cfg.n_population; ++i) {
             int* chrom = cfg.population + i * cfg.n_cities;
@@ -1064,6 +1153,7 @@ void ga2opt_run_cuda4(GA2OptConfig& cfg) {
 
         int current_best_idx = ga2opt_find_best_individual(cfg);
         double best_dist = cfg.distances[current_best_idx];
+
         if (gen % GEN_COLLECT_INTERVAL == 0 || gen == cfg.n_generations - 1) {
             auto current_time = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed = current_time - start_time;
