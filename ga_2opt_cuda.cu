@@ -450,6 +450,21 @@ __device__ void copy_individual_device(const GA2OptConfig& cfg, const int* src, 
     }
 }
 
+// Single-thread kernel to find the best individual on device
+__global__ void ga2opt_find_best_kernel(GA2OptConfig cfg, const double* d_dist, int* d_best_idx) {
+    if (blockIdx.x != 0 || threadIdx.x != 0) return;
+    int best = 0;
+    double best_val = d_dist[0];
+    for (int i = 1; i < cfg.n_population; ++i) {
+        double v = d_dist[i];
+        if (v < best_val) {
+            best_val = v;
+            best = i;
+        }
+    }
+    *d_best_idx = best;
+}
+
 // Compute fitness probabilities on device: probs[i] = (1/dist[i]) / sum_j(1/dist[j])
 __global__ void ga2opt_compute_fitness_prob_device(const GA2OptConfig cfg, const double* d_distances, double* d_probs) {
     extern __shared__ double sdata[]; // shared buffer for reduction
@@ -1174,6 +1189,189 @@ void ga2opt_run_cuda4(GA2OptConfig& cfg) {
     delete[] probs;
 }
 
+// Version 5: All on GPU, but seperating all kernel.
+void ga2opt_run_cuda5(GA2OptConfig& cfg) {
+    
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, 0);
+    cudaError_t err = cudaGetLastError();
+    std::cout << "Running on GPU: " << prop.name << std::endl;
+    std::cout << "Max threads block: " << prop.maxThreadsPerBlock << std::endl;
+
+    // Allocate device memory for populations and distances
+    size_t pop_bytes = (size_t)cfg.n_population * (size_t)cfg.n_cities * sizeof(int);
+    size_t dist_bytes = (size_t)cfg.n_population * sizeof(double);
+
+    cudaMalloc(&cfg.d_population, pop_bytes);
+    cudaMalloc(&cfg.d_next_population, pop_bytes);
+    cudaMalloc(&cfg.d_distances, dist_bytes);
+    cudaMalloc(&cfg.d_next_distances, dist_bytes);
+
+    // Copy initial population and distances to device
+    cudaMemcpy(cfg.d_population, cfg.population, pop_bytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(cfg.d_distances, cfg.distances, dist_bytes, cudaMemcpyHostToDevice);
+
+    // Copy cities to device (constant across generations)
+    City* d_cities = nullptr;
+    double* d_probs = nullptr;
+    int* d_best_idx = nullptr;
+    cudaMalloc(&d_probs, (size_t)cfg.n_population * sizeof(double));
+    cudaMalloc(&d_cities, (size_t)cfg.n_cities * sizeof(City));
+    cudaMalloc(&d_best_idx, sizeof(int));
+    cudaMemcpy(d_cities, cfg.cities, (size_t)cfg.n_cities * sizeof(City), cudaMemcpyHostToDevice);
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+    for (int gen = 0; gen < cfg.n_generations; ++gen) {
+        // --- Compute fitness and selection probabilities entirely on GPU ---
+        int blockSizeFit = 256;
+        int gridSizeFit = (cfg.n_population + blockSizeFit - 1) / blockSizeFit;
+
+        size_t prob_bytes = (size_t)(cfg.n_population + gridSizeFit) * sizeof(double);
+        double* d_probs_full = nullptr;
+        cudaMalloc(&d_probs_full, prob_bytes);
+        cudaMemset(d_probs_full, 0, prob_bytes);
+
+        ga2opt_compute_fitness_prob_device<<<gridSizeFit, blockSizeFit, blockSizeFit * sizeof(double)>>>(cfg, cfg.d_distances, d_probs_full);
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "[GPU-all] fitness kernel failed: " << cudaGetErrorString(err) << std::endl;
+            cudaFree(d_probs_full);
+            break;
+        }
+
+        // reduce partial sums on host to get total fitness
+        double* h_block_sums = new double[gridSizeFit];
+        cudaMemcpy(h_block_sums, d_probs_full + cfg.n_population, (size_t)gridSizeFit * sizeof(double), cudaMemcpyDeviceToHost);
+        double total_fitness = 0.0;
+        for (int b = 0; b < gridSizeFit; ++b) total_fitness += h_block_sums[b];
+        delete[] h_block_sums;
+
+        ga2opt_normalize_probs_device<<<gridSizeFit, blockSizeFit>>>(cfg, d_probs_full, total_fitness);
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "[GPU-all] normalize kernel failed: " << cudaGetErrorString(err) << std::endl;
+            cudaFree(d_probs_full);
+            break;
+        }
+
+        // Use device-side probabilities array (first n_population entries)
+        double* d_probs_sel = d_probs_full;
+
+        // Elitism on device: find best index using a single-thread kernel
+        ga2opt_find_best_kernel<<<1, 1>>>(cfg, cfg.d_distances, d_best_idx);
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "[GPU-all] find_best kernel failed: " << cudaGetErrorString(err) << std::endl;
+            cudaFree(d_probs_full);
+            break;
+        }
+
+        int best_idx = 0;
+        cudaMemcpy(&best_idx, d_best_idx, sizeof(int), cudaMemcpyDeviceToHost);
+
+        cudaMemcpy(cfg.d_next_population,
+                   cfg.d_population + best_idx * cfg.n_cities,
+                   (size_t)cfg.n_cities * sizeof(int),
+                   cudaMemcpyDeviceToDevice);
+        cudaMemcpy(cfg.d_next_distances,
+                   cfg.d_distances + best_idx,
+                   sizeof(double),
+                   cudaMemcpyDeviceToDevice);
+
+        unsigned int base_seed = (unsigned int)std::chrono::high_resolution_clock::now()
+                                     .time_since_epoch().count();
+
+        // 1) selection + crossover (fill indices 1..n_population-1 in d_next_population)
+        int blockSizeOffspring = 128;
+        int n_units = (cfg.n_population - 1 + 1) / 2; // ceil((n_population-1)/2)
+        int gridSizeOffspring = (n_units + blockSizeOffspring - 1) / blockSizeOffspring;
+        ga2opt_select_and_crossover_kernel<<<gridSizeOffspring, blockSizeOffspring>>>(
+            cfg, d_probs_sel, d_cities, base_seed);
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "Select+crossover kernel failed: " << cudaGetErrorString(err) << std::endl;
+            break;
+        }
+        cudaDeviceSynchronize();
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "Select+crossover sync failed: " << cudaGetErrorString(err) << std::endl;
+            break;
+        }
+
+        // 2) mutation on d_next_population (keep elite at index 0)
+        int blockSizeMut = 128;
+        int gridSizeMut = (cfg.n_population + blockSizeMut - 1) / blockSizeMut;
+        ga2opt_mutate_kernel<<<gridSizeMut, blockSizeMut>>>(cfg, base_seed + 1337u);
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "Mutation kernel failed: " << cudaGetErrorString(err) << std::endl;
+            break;
+        }
+        cudaDeviceSynchronize();
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "Mutation sync failed: " << cudaGetErrorString(err) << std::endl;
+            break;
+        }
+        // 3) evaluate distances for all individuals in next population
+        ga2opt_eval_distance_kernel<<<gridSizeMut, blockSizeMut>>>(cfg, d_cities);
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "Eval-distance kernel failed: " << cudaGetErrorString(err) << std::endl;
+            break;
+        }
+        cudaDeviceSynchronize();
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "Eval-distance sync failed: " << cudaGetErrorString(err) << std::endl;
+            break;
+        }
+
+        ga2opt_cuda_kernel_2opt_only<<<gridSizeMut, blockSizeMut>>>(cfg, d_cities);
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "2-opt kernel failed: " << cudaGetErrorString(err) << std::endl;
+            break;
+        }
+        cudaDeviceSynchronize();
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "2-opt sync failed: " << cudaGetErrorString(err) << std::endl;
+            break; 
+        }
+
+        if (gen % GEN_COLLECT_INTERVAL == 0 || gen == cfg.n_generations - 1) {
+            // 只在這裡才把距離拷回 host 作為 logging，用 already-computed d_next_distances
+            cudaMemcpy(cfg.distances, cfg.d_next_distances, dist_bytes, cudaMemcpyDeviceToHost);
+            int current_best_idx = ga2opt_find_best_individual(cfg);
+            double best_dist = cfg.distances[current_best_idx];
+            auto current_time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed = current_time - start_time;
+            start_time = current_time;
+            std::cout << "Generation " << gen
+                      << " Best Distance: " << best_dist
+                      << " Time: " << elapsed.count() << "s" << std::endl;
+        }
+    }
+
+    // Final best: pull last-generation distances and population back once
+    cudaMemcpy(cfg.distances, cfg.d_next_distances, dist_bytes, cudaMemcpyDeviceToHost);
+    cudaMemcpy(cfg.population, cfg.d_next_population, pop_bytes, cudaMemcpyDeviceToHost);
+
+    int final_best_idx = ga2opt_find_best_individual(cfg);
+    std::cout << "Final Best Distance: " << cfg.distances[final_best_idx] << std::endl;
+    std::cout << "Best Route: ";
+    int* best_chrom = cfg.population + final_best_idx * cfg.n_cities;
+    for (int i = 0; i < cfg.n_cities; ++i) {
+        std::cout << best_chrom[i] << " ";
+    }
+    std::cout << best_chrom[0] << std::endl; // close the tour
+    
+    cudaFree(d_probs);
+    cudaFree(d_best_idx);
+}
+
 int main(int argc, char** argv) {
     const std::string dataset = (argc > 1) ? argv[1] : "qa194.tsp";
     const int n_population = 8192;   // For cuda, set to a power of two
@@ -1214,7 +1412,7 @@ int main(int argc, char** argv) {
 
         std::cout << "Starting GA + 2-opt for TSP (" << dataset << ")..." << std::endl;
         auto start = std::chrono::high_resolution_clock::now();
-        ga2opt_run_cuda4(cfg);
+        ga2opt_run_cuda5(cfg);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         std::cout << "Time: " << elapsed.count() << " s" << std::endl;
