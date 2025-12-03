@@ -63,6 +63,12 @@ Another test: qa194.tsp
 
 sum = 0.0246328 + 12.9456 + 82.2898 + 84.5267 + 85.5092
 
+## ga2opt_run_cuda4
+
+考慮到 Local search 對於 GPU 的 thread 來說非常耗時間，
+
 ## Conclusion
 
 隨著種群數目提升，GPU 的效果將越明顯，但種群數目小時，Serial 版本反而會比 GPU 版本快上許多。由工具查看後發現 Bottleneck 都在 cudaDeviceSynchronize，也就是說，每個世代要同步時將會消耗非常多的時間等待記憶體的搬移，為了減少這種搬移，我將 GA 調整成每 100 個 Generation 才從 GPU 同步結果，也就是第三種平行化方法的原因。因為 fitness、crossover、mutate 等運算都會在不同問題有不一樣的實現，且要移植就是要全部移到功能一次移動到 GPU 上才能得到最好的效果，所以整體來說 GA 並不是很簡單能夠移植到 GPU 的演算法，使用 OpenMP、MPI、Threads 等加速方法會更容易得到好的效果。
+
+考慮到 GA 並不像是傳統 CNN 那種類型，一張圖近來，每個 thread 在各個點上作自己的事情，後面可以合併。GA 是一個種群近來，每個種群都是作一樣多的工作，也就是說，workload 在 CUDA + GA 情境下並沒有變少，這是導致 CUDA 真正原因。
