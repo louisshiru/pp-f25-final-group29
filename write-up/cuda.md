@@ -31,8 +31,37 @@
 ## ga2opt_run_cuda3
 
 該方法為第一種方法的延伸，並將所有計算都丟給 GPU，並在每 100 個 Generation 才拉回作一次輸出。
-實驗結果如下，每 100 Generation 消耗時間為 12.3642s
+實驗結果如下，每 100 Generation 消耗時間為 12.3642s (dj38.tsp)
 
+Another test: zi929.tsp
+
+[GPU-GA+2opt] Generation 0 Best Distance: 2.09514e+06 Time: 0.028151s
+[GPU-GA+2opt] Generation 1000 Best Distance: 1.22046e+06 Time: 11.4723s
+[GPU-GA+2opt] Generation 2000 Best Distance: 944770 Time: 14.5775s
+[GPU-GA+2opt] Generation 3000 Best Distance: 746248 Time: 12.8746s
+[GPU-GA+2opt] Generation 4000 Best Distance: 588585 Time: 16.3644s
+[GPU-GA+2opt] Generation 5000 Best Distance: 508610 Time: 16.2753s
+[GPU-GA+2opt] Generation 6000 Best Distance: 416430 Time: 119.464s
+[GPU-GA+2opt] Generation 7000 Best Distance: 346338 Time: 86.5836s
+[GPU-GA+2opt] Generation 8000 Best Distance: 300283 Time: 79.041s
+[GPU-GA+2opt] Generation 9000 Best Distance: 255991 Time: 231.566s
+[GPU-GA+2opt] Generation 10000 Best Distance: 210067 Time: 236.518s
+[GPU-GA+2opt] Generation 11000 Best Distance: 158113 Time: 645.581s
+[GPU-GA+2opt] Generation 12000 Best Distance: 149812 Time: 422.027s
+[GPU-GA+2opt] Generation 13000 Best Distance: 133711 Time: 736.75s
+[GPU-GA+2opt] Generation 14000 Best Distance: 124535 Time: 1040.01s
+[GPU-GA+2opt] Generation 15000 Best Distance: 118094 Time: 1201.51s
+
+sum = 0.028151 + 11.4723 + 14.5775 + 12.8746 + 16.3644 + 16.2753 + 119.464 + 86.5836 + 79.041 + 231.566 + 236.518 + 645.581 + 422.027 + 736.75 + 1040.01 + 1201.51
+
+Another test: qa194.tsp
+[GPU-GA+2opt] Generation 0 Best Distance: 61604.2 Time: 0.0246328s
+[GPU-GA+2opt] Generation 1000 Best Distance: 19499.1 Time: 12.9456s
+[GPU-GA+2opt] Generation 2000 Best Distance: 10148 Time: 82.2898s
+[GPU-GA+2opt] Generation 3000 Best Distance: 9732.35 Time: 84.5267s
+[GPU-GA+2opt] Generation 4000 Best Distance: 9706.13 Time: 85.5092s
+
+sum = 0.0246328 + 12.9456 + 82.2898 + 84.5267 + 85.5092
 
 ## Conclusion
 

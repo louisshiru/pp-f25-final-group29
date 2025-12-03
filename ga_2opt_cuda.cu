@@ -624,6 +624,15 @@ void ga2opt_run_cuda(GA2OptConfig& cfg) {
         cfg.distances = cfg.next_distances;
         cfg.next_distances = temp_dist;
 
+        // Host-side 2-opt refinement using OpenMP on all individuals
+        // GA 部分已在 GPU 完成，這裡只針對整個族群做一次 2-opt
+        #pragma omp parallel for schedule(guided)
+        for (int i = 0; i < cfg.n_population; ++i) {
+            int* chrom = cfg.population + i * cfg.n_cities;
+            two_opt(chrom, cfg.n_cities, cfg.cities, cfg.two_opt_passes_offspring);
+            cfg.distances[i] = total_distance(chrom, cfg.n_cities, cfg.cities);
+        }
+
         int current_best_idx = ga2opt_find_best_individual(cfg);
         double best_dist = cfg.distances[current_best_idx];
         if (gen % GEN_COLLECT_INTERVAL == 0 || gen == cfg.n_generations - 1) {
@@ -921,16 +930,170 @@ void ga2opt_run_cuda3(GA2OptConfig& cfg) {
     cudaFree(cfg.d_next_distances);
 }
 
+__global__ void ga2opt_cuda_kernel_no_2opt(GA2OptConfig cfg, const double* probs, const City* d_cities, unsigned int seed) {
+
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    int idx1 = 1 + 2 * tid;
+    int idx2 = idx1 + 1;
+    if (idx1 >= cfg.n_population) return;
+
+    // Very simple xorshift RNG per thread
+    unsigned int state = seed ^ (tid * 9781u + 1u);
+    int p1_idx = roulette_device(cfg.n_population, probs, state);
+    int p2_idx = roulette_device(cfg.n_population, probs, state);
+
+    int* child1_ptr = cfg.d_next_population + idx1 * cfg.n_cities;
+    int* child2_ptr = (idx2 < cfg.n_population) ? cfg.d_next_population + idx2 * cfg.n_cities : nullptr;
+
+    if (rand_real_device(state) < cfg.crossover_rate) {
+        const int* p1 = cfg.d_population + p1_idx * cfg.n_cities;
+        const int* p2 = cfg.d_population + p2_idx * cfg.n_cities;
+        crossover_device(cfg, state, p1, p2, child1_ptr, child2_ptr);
+        mutate_device(cfg, child1_ptr, state);
+
+        cfg.d_next_distances[idx1] = d_total_distance(child1_ptr, cfg.n_cities, d_cities);
+
+        if (child2_ptr) {
+            mutate_device(cfg, child2_ptr, state);
+            cfg.d_next_distances[idx2] = d_total_distance(child2_ptr, cfg.n_cities, d_cities);
+        }
+    } else {
+        const int* p1 = cfg.d_population + p1_idx * cfg.n_cities;
+        for (int i = 0; i < cfg.n_cities; ++i) child1_ptr[i] = p1[i];
+        mutate_device(cfg, child1_ptr, state);
+        cfg.d_next_distances[idx1] = d_total_distance(child1_ptr, cfg.n_cities, d_cities);
+
+        if (child2_ptr) {
+            const int* p2 = cfg.d_population + p2_idx * cfg.n_cities;
+            for (int i = 0; i < cfg.n_cities; ++i) child2_ptr[i] = p2[i];
+            mutate_device(cfg, child2_ptr, state);
+            cfg.d_next_distances[idx2] = d_total_distance(child2_ptr, cfg.n_cities, d_cities);
+        }
+    }
+}
+
+
+// Version 4: 2-opt on host, and other on GPU
+void ga2opt_run_cuda4(GA2OptConfig& cfg) {
+    
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, 0);
+    cudaError_t err = cudaGetLastError();
+    std::cout << "Running on GPU: " << prop.name << std::endl;
+    std::cout << "Max threads block: " << prop.maxThreadsPerBlock << std::endl;
+
+    double* probs = new double[cfg.n_population];
+
+    // Allocate device memory for populations and distances
+    size_t pop_bytes = (size_t)cfg.n_population * (size_t)cfg.n_cities * sizeof(int);
+    size_t dist_bytes = (size_t)cfg.n_population * sizeof(double);
+
+    cudaMalloc(&cfg.d_population, pop_bytes);
+    cudaMalloc(&cfg.d_next_population, pop_bytes);
+    cudaMalloc(&cfg.d_distances, dist_bytes);
+    cudaMalloc(&cfg.d_next_distances, dist_bytes);
+
+    // Copy initial population and distances to device
+    cudaMemcpy(cfg.d_population, cfg.population, pop_bytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(cfg.d_distances, cfg.distances, dist_bytes, cudaMemcpyHostToDevice);
+
+    // Copy cities to device (constant across generations)
+    City* d_cities = nullptr;
+    cudaMalloc(&d_cities, (size_t)cfg.n_cities * sizeof(City));
+    cudaMemcpy(d_cities, cfg.cities, (size_t)cfg.n_cities * sizeof(City), cudaMemcpyHostToDevice);
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+    for (int gen = 0; gen < cfg.n_generations; ++gen) {
+        ga2opt_compute_fitness_prob(cfg, probs);
+
+        // Copy fitness probabilities to device
+        double* d_probs = nullptr;
+        cudaMalloc(&d_probs, dist_bytes);
+        cudaMemcpy(d_probs, probs, dist_bytes, cudaMemcpyHostToDevice);
+ 
+        // Elitism on host: copy best individual to next_population[0]
+        int best_idx = ga2opt_find_best_individual(cfg);
+        ga2opt_copy_individual(cfg, cfg.population + best_idx * cfg.n_cities,
+                       cfg.next_population + 0 * cfg.n_cities);
+        cfg.next_distances[0] = cfg.distances[best_idx];
+
+        // Copy elite to device next population
+        cudaMemcpy(cfg.d_next_population, cfg.next_population, (size_t)cfg.n_cities * sizeof(int), cudaMemcpyHostToDevice);
+        cudaMemcpy(cfg.d_next_distances, cfg.next_distances, sizeof(double), cudaMemcpyHostToDevice);
+
+        unsigned int seed = (unsigned int)std::chrono::high_resolution_clock::now().time_since_epoch().count();
+        int blockSizeOffspring = 256;
+        int n_units = (cfg.n_population - 1 + 1) / 2; // ceil((n_population-1)/2)
+        int gridSizeOffspring = (n_units + blockSizeOffspring - 1) / blockSizeOffspring;
+        ga2opt_cuda_kernel_no_2opt<<<gridSizeOffspring, blockSizeOffspring>>>(cfg, d_probs, d_cities, seed);
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "Kernel launch failed: " << cudaGetErrorString(err) << std::endl;
+            break;
+        }
+        cudaDeviceSynchronize();
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cerr << "Memory failed: " << cudaGetErrorString(err) << std::endl;
+            break;
+        }
+        cudaFree(d_probs);
+
+        // Copy updated populations and distances back to host
+        cudaMemcpy(cfg.next_population, cfg.d_next_population, pop_bytes, cudaMemcpyDeviceToHost);
+        cudaMemcpy(cfg.next_distances, cfg.d_next_distances, dist_bytes, cudaMemcpyDeviceToHost);
+
+        // Swap populations (host side; device pointers remain mapped to logical roles)
+        int* temp_pop = cfg.population;
+        cfg.population = cfg.next_population;
+        cfg.next_population = temp_pop;
+
+        double* temp_dist = cfg.distances;
+        cfg.distances = cfg.next_distances;
+        cfg.next_distances = temp_dist;
+
+        // Host-side 2-opt refinement using OpenMP on all individuals
+        // GA 部分已在 GPU 完成，這裡只針對整個族群做一次 2-opt
+        #pragma omp parallel for schedule(guided)
+        for (int i = 0; i < cfg.n_population; ++i) {
+            int* chrom = cfg.population + i * cfg.n_cities;
+            two_opt(chrom, cfg.n_cities, cfg.cities, cfg.two_opt_passes_offspring);
+            cfg.distances[i] = total_distance(chrom, cfg.n_cities, cfg.cities);
+        }
+
+        int current_best_idx = ga2opt_find_best_individual(cfg);
+        double best_dist = cfg.distances[current_best_idx];
+        if (gen % GEN_COLLECT_INTERVAL == 0 || gen == cfg.n_generations - 1) {
+            auto current_time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed = current_time - start_time;
+            start_time = current_time;
+            std::cout << "Generation " << gen << " Best Distance: " << best_dist << " Time: " << elapsed.count() << "s" << std::endl;
+        }
+    }
+
+    int final_best_idx = ga2opt_find_best_individual(cfg);
+    std::cout << "Final Best Distance: " << cfg.distances[final_best_idx] << std::endl;
+    std::cout << "Best Route: ";
+    int* best_chrom = cfg.population + final_best_idx * cfg.n_cities;
+    for (int i = 0; i < cfg.n_cities; ++i) {
+        std::cout << best_chrom[i] << " ";
+    }
+    std::cout << best_chrom[0] << std::endl; // close the tour
+    
+    delete[] probs;
+}
+
 int main(int argc, char** argv) {
-    const std::string dataset = (argc > 1) ? argv[1] : "dj38.tsp";
+    const std::string dataset = (argc > 1) ? argv[1] : "qa194.tsp";
     const int n_population = 8192;   // For cuda, set to a power of two
-    const int n_generations = 200; // You can tune these values as needed
-    const double crossover_rate = 0.8;
-    const double mutation_rate = 0.2;
+    const int n_generations = 1000; // You can tune these values as needed
+    const double crossover_rate = 0.5;
+    const double mutation_rate = 0.5;
     const double init_two_opt_prob = 1.0;         // probability to refine an initial individual
     const double offspring_two_opt_prob = 0.5;    // probability to refine a child each generation
     const int two_opt_passes_init = 100;          // cap 2-opt passes for initial population
-    const int two_opt_passes_offspring = 50;     // cap 2-opt passes for offspring
+    const int two_opt_passes_offspring = 1;     // cap 2-opt passes for offspring
 
     srand(time(NULL));
 
@@ -961,7 +1124,7 @@ int main(int argc, char** argv) {
 
         std::cout << "Starting GA + 2-opt for TSP (" << dataset << ")..." << std::endl;
         auto start = std::chrono::high_resolution_clock::now();
-        ga2opt_run_cuda3(cfg);
+        ga2opt_run_cuda4(cfg);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         std::cout << "Time: " << elapsed.count() << " s" << std::endl;
