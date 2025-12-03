@@ -7,6 +7,8 @@
 #include <iostream>
 #include <ctime>
 
+
+#define GEN_COLLECT_INTERVAL 100
 // Simple 2-opt local search used as a GA refinement step.
 // Given a permutation of city indices, it keeps swapping two edges
 // whenever the total tour length can be shortened.
@@ -287,7 +289,7 @@ void ga2opt_run(GA2OptConfig& cfg) {
         int current_best_idx = ga2opt_find_best_individual(cfg);
         double best_dist = cfg.distances[current_best_idx];
 
-        if (gen % 100 == 0 || gen == cfg.n_generations - 1) {
+        if (gen % GEN_COLLECT_INTERVAL == 0 || gen == cfg.n_generations - 1) {
             auto current_time = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed = current_time - start_time;
             start_time = current_time;
@@ -624,7 +626,7 @@ void ga2opt_run_cuda(GA2OptConfig& cfg) {
 
         int current_best_idx = ga2opt_find_best_individual(cfg);
         double best_dist = cfg.distances[current_best_idx];
-        if (gen % 100 == 0 || gen == cfg.n_generations - 1) {
+        if (gen % GEN_COLLECT_INTERVAL == 0 || gen == cfg.n_generations - 1) {
             auto current_time = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed = current_time - start_time;
             start_time = current_time;
@@ -755,7 +757,7 @@ void ga2opt_run_cuda2(GA2OptConfig& cfg) {
 
         int current_best_idx = ga2opt_find_best_individual(cfg);
         double best_dist = cfg.distances[current_best_idx];
-        if (gen % 100 == 0 || gen == cfg.n_generations - 1) {
+        if (gen % GEN_COLLECT_INTERVAL == 0 || gen == cfg.n_generations - 1) {
             auto current_time = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed = current_time - start_time;
             start_time = current_time;
@@ -887,7 +889,7 @@ void ga2opt_run_cuda3(GA2OptConfig& cfg) {
         cfg.d_next_distances = tmp_d_dist;
 
         // Every 100 generations (and last), pull distances back and log best
-        if (gen % 100 == 0 || gen == cfg.n_generations - 1) {
+        if (gen % GEN_COLLECT_INTERVAL == 0 || gen == cfg.n_generations - 1) {
             cudaMemcpy(cfg.distances, cfg.d_distances, dist_bytes, cudaMemcpyDeviceToHost);
             int current_best_idx = ga2opt_find_best_individual(cfg);
             double best_dist = cfg.distances[current_best_idx];
@@ -921,7 +923,7 @@ void ga2opt_run_cuda3(GA2OptConfig& cfg) {
 
 int main(int argc, char** argv) {
     const std::string dataset = (argc > 1) ? argv[1] : "dj38.tsp";
-    const int n_population = 4096;   // For cuda, set to a power of two
+    const int n_population = 8192;   // For cuda, set to a power of two
     const int n_generations = 200; // You can tune these values as needed
     const double crossover_rate = 0.8;
     const double mutation_rate = 0.2;
@@ -959,7 +961,7 @@ int main(int argc, char** argv) {
 
         std::cout << "Starting GA + 2-opt for TSP (" << dataset << ")..." << std::endl;
         auto start = std::chrono::high_resolution_clock::now();
-        ga2opt_run(cfg);
+        ga2opt_run_cuda3(cfg);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         std::cout << "Time: " << elapsed.count() << " s" << std::endl;
