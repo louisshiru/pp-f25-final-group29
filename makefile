@@ -31,11 +31,12 @@ GA2_OMP_OBJ := $(GA2_OMP_SRC:.cpp=.o)
 GA2_OMP_TARGET := tsp_ga2opt_omp
 
 # GA + 2-opt cuda
-GA2_CUDA_SRC := dataloader.cpp
-GA2_CUDA_CU := ga_2opt_cuda.cu
-GA2_CUDA_OBJ := $(GA2_CUDA_SRC:.cpp=.o) $(GA2_CUDA_CU:.cu=_cu.o)
+# Host-side GA implementation in C++ and CUDA kernels in separate .cu
+GA2_CUDA_SRC := dataloader.cpp ga_2opt_cuda.cpp
+GA2_CUDA_CU  := kernel.cu
+GA2_CUDA_OBJ := $(GA2_CUDA_SRC:.cpp=.o) $(GA2_CUDA_CU:.cu=.o)
 GA2_CUDA_TARGET := tsp_ga2opt_cuda
-GA2_CUDA_FLAG := -Ilib
+GA2_CUDA_FLAG := -Ilib -std=c++11 -O2 -arch=sm_61
 
 GPROF_RESULT := gmon.out profiling_result
 
@@ -62,7 +63,7 @@ $(GA2_OMP_TARGET): $(GA2_OMP_OBJ)
 $(GA2_CUDA_TARGET): $(GA2_CUDA_OBJ) 
 	nvcc $(GA2_CUDA_FLAG) -o $@ $^
 
-%_cu.o: %.cu
+%.o: %.cu
 	nvcc $(GA2_CUDA_FLAG) -c $< -o $@
 
 %.o: %.cpp
