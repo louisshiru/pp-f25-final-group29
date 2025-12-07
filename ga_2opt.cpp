@@ -102,31 +102,38 @@ public:
 
     void run() {
         auto start_time = std::chrono::high_resolution_clock::now();
+        std::vector<double> cumulative_probs;
+        std::vector<Individual> next_population;
+        next_population.resize(static_cast<size_t>(n_population_));
+
         for (int gen = 0; gen < n_generations_; ++gen) {
-            const std::vector<double> probs = fitness_prob(population_);
-            std::vector<Individual> next_population;
+            cumulative_probs = fitness_cumulative(population_);
+            next_population.assign(static_cast<size_t>(n_population_), Individual{});
 
             // Elitism: keep the current best individual.
             const auto best_it = std::min_element(
                 population_.begin(), population_.end(),
                 [](const Individual& a, const Individual& b) { return a.distance < b.distance; });
-            next_population.push_back(*best_it);
+            next_population[0] = *best_it;
 
-            while (static_cast<int>(next_population.size()) < n_population_) {
-                const Individual p1 = roulette_wheel(population_, probs);
-                const Individual p2 = roulette_wheel(population_, probs);
+            for (int idx = 1; idx < n_population_; idx += 2) {
+                const Individual p1 = roulette_wheel(population_, cumulative_probs);
+                const Individual p2 = roulette_wheel(population_, cumulative_probs);
 
+                Individual child1;
+                Individual child2;
                 if (random_real() < crossover_rate_) {
                     auto children = crossover(p1, p2);
-                    append_with_mutation_and_local_search(next_population, children.first);
-                    if (static_cast<int>(next_population.size()) < n_population_) {
-                        append_with_mutation_and_local_search(next_population, children.second);
-                    }
+                    child1 = mutate_and_local_search(std::move(children.first));
+                    child2 = mutate_and_local_search(std::move(children.second));
                 } else {
-                    append_with_mutation_and_local_search(next_population, p1);
-                    if (static_cast<int>(next_population.size()) < n_population_) {
-                        append_with_mutation_and_local_search(next_population, p2);
-                    }
+                    child1 = mutate_and_local_search(p1);
+                    child2 = mutate_and_local_search(p2);
+                }
+
+                next_population[idx] = std::move(child1);
+                if (idx + 1 < n_population_) {
+                    next_population[idx + 1] = std::move(child2);
                 }
             }
 
@@ -199,34 +206,28 @@ private:
         return pop;
     }
 
-    std::vector<double> fitness_prob(const std::vector<Individual>& pop) {
-        std::vector<double> fitness_vals;
-        fitness_vals.reserve(pop.size());
+    std::vector<double> fitness_cumulative(const std::vector<Individual>& pop) {
+        std::vector<double> cumulative(pop.size(), 0.0);
         double total_fitness = 0.0;
         for (const auto& ind : pop) {
-            const double f = 1.0 / ind.distance;
-            fitness_vals.push_back(f);
-            total_fitness += f;
+            total_fitness += 1.0 / ind.distance;
         }
-
-        std::vector<double> probs;
-        probs.reserve(pop.size());
-        for (double f : fitness_vals) {
-            probs.push_back(f / total_fitness);
+        double running = 0.0;
+        for (size_t i = 0; i < pop.size(); ++i) {
+            running += (1.0 / pop[i].distance) / total_fitness;
+            cumulative[i] = running;
         }
-        return probs;
+        if (!cumulative.empty()) {
+            cumulative.back() = 1.0; // avoid floating-point gap at the end
+        }
+        return cumulative;
     }
 
-    Individual roulette_wheel(const std::vector<Individual>& pop, const std::vector<double>& probs) {
+    Individual roulette_wheel(const std::vector<Individual>& pop, const std::vector<double>& cumulative) {
         const double r = random_real();
-        double cum_prob = 0.0;
-        for (size_t i = 0; i < pop.size(); ++i) {
-            cum_prob += probs[i];
-            if (r <= cum_prob) {
-                return pop[i];
-            }
-        }
-        return pop.back();
+        const auto it = std::lower_bound(cumulative.begin(), cumulative.end(), r);
+        const size_t idx = static_cast<size_t>(std::distance(cumulative.begin(), (it == cumulative.end()) ? cumulative.end() - 1 : it));
+        return pop[idx];
     }
 
     std::pair<Individual, Individual> crossover(const Individual& p1, const Individual& p2) {
@@ -273,14 +274,13 @@ private:
         }
     }
 
-    void append_with_mutation_and_local_search(std::vector<Individual>& pop, Individual child) {
+    Individual mutate_and_local_search(Individual child) {
         mutate(child.chromosome);
-        // Apply 2-opt only on a subset of offspring to balance quality and speed.
         if (random_real() < offspring_two_opt_prob_) {
             child.chromosome = two_opt(child.chromosome, dist_matrix_, two_opt_passes_offspring_);
         }
         child.distance = total_distance(child.chromosome, dist_matrix_);
-        pop.push_back(std::move(child));
+        return child;
     }
 };
 
