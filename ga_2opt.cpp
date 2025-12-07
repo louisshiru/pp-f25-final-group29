@@ -10,28 +10,45 @@
 #include <string>
 #include <vector>
 
-// Simple 2-opt local search used as a GA refinement step.
-// Given a permutation of city indices, it keeps swapping two edges
-// whenever the total tour length can be shortened.
-double dist_city(const City& a, const City& b) {
-    const double dx = a.x - b.x;
-    const double dy = a.y - b.y;
-    return std::sqrt(dx * dx + dy * dy);
-}
+// Dense distance matrix keeps lookups cache-friendly for GA + 2-opt,
+// so we only pay the sqrt cost once during construction.
+class DistanceMatrix {
+public:
+    explicit DistanceMatrix(const std::vector<City>& cities)
+        : n_(cities.size()), data_(n_ * n_, 0.0) {
+        for (size_t i = 0; i < n_; ++i) {
+            for (size_t j = i + 1; j < n_; ++j) {
+                const double dx = cities[i].x - cities[j].x;
+                const double dy = cities[i].y - cities[j].y;
+                const double d = std::sqrt(dx * dx + dy * dy);
+                data_[i * n_ + j] = d;
+                data_[j * n_ + i] = d;
+            }
+        }
+    }
 
-double total_distance(const std::vector<int>& route, const std::vector<City>& cities) {
+    double operator()(int i, int j) const {
+        return data_[static_cast<size_t>(i) * n_ + static_cast<size_t>(j)];
+    }
+
+    size_t size() const { return n_; }
+
+private:
+    size_t n_;
+    std::vector<double> data_;
+};
+
+double total_distance(const std::vector<int>& route, const DistanceMatrix& dist) {
     double total = 0.0;
     const size_t n = route.size();
     for (size_t i = 0; i < n; ++i) {
-        const City& c1 = cities[route[i]];
-        const City& c2 = cities[route[(i + 1) % n]];
-        total += dist_city(c1, c2);
+        total += dist(route[i], route[(i + 1) % n]);
     }
     return total;
 }
 
 // A capped 2-opt: at most `max_passes` improvement rounds to avoid long runtimes on large instances.
-std::vector<int> two_opt(std::vector<int> route, const std::vector<City>& cities, int max_passes) {
+std::vector<int> two_opt(std::vector<int> route, const DistanceMatrix& dist, int max_passes) {
     const size_t n = route.size();
     if (n < 4) return route;
 
@@ -43,10 +60,10 @@ std::vector<int> two_opt(std::vector<int> route, const std::vector<City>& cities
             for (size_t k = i + 1; k < n && !improved; ++k) {
                 const size_t next = (k + 1) % n;
                 const double delta =
-                    dist_city(cities[route[i - 1]], cities[route[k]]) +
-                    dist_city(cities[route[i]], cities[route[next]]) -
-                    dist_city(cities[route[i - 1]], cities[route[i]]) -
-                    dist_city(cities[route[k]], cities[route[next]]);
+                    dist(route[i - 1], route[k]) +
+                    dist(route[i], route[next]) -
+                    dist(route[i - 1], route[i]) -
+                    dist(route[k], route[next]);
 
                 if (delta < -1e-9) {
                     std::reverse(route.begin() + static_cast<long>(i), route.begin() + static_cast<long>(k) + 1);
@@ -70,6 +87,7 @@ public:
     GA2Opt(const std::vector<City>& cities, int population, int generations, double crossover_rate, double mutation_rate, double init_two_opt_prob = 0.25,
            double offspring_two_opt_prob = 0.15, int two_opt_passes_init = 3, int two_opt_passes_offspring = 2)
         : cities_(cities),
+          dist_matrix_(cities),
           n_population_(population),
           n_generations_(generations),
           crossover_rate_(crossover_rate),
@@ -84,31 +102,38 @@ public:
 
     void run() {
         auto start_time = std::chrono::high_resolution_clock::now();
+        std::vector<double> cumulative_probs;
+        std::vector<Individual> next_population;
+        next_population.resize(static_cast<size_t>(n_population_));
+
         for (int gen = 0; gen < n_generations_; ++gen) {
-            const std::vector<double> probs = fitness_prob(population_);
-            std::vector<Individual> next_population;
+            cumulative_probs = fitness_cumulative(population_);
+            next_population.assign(static_cast<size_t>(n_population_), Individual{});
 
             // Elitism: keep the current best individual.
             const auto best_it = std::min_element(
                 population_.begin(), population_.end(),
                 [](const Individual& a, const Individual& b) { return a.distance < b.distance; });
-            next_population.push_back(*best_it);
+            next_population[0] = *best_it;
 
-            while (static_cast<int>(next_population.size()) < n_population_) {
-                const Individual p1 = roulette_wheel(population_, probs);
-                const Individual p2 = roulette_wheel(population_, probs);
+            for (int idx = 1; idx < n_population_; idx += 2) {
+                const Individual p1 = roulette_wheel(population_, cumulative_probs);
+                const Individual p2 = roulette_wheel(population_, cumulative_probs);
 
+                Individual child1;
+                Individual child2;
                 if (random_real() < crossover_rate_) {
                     auto children = crossover(p1, p2);
-                    append_with_mutation_and_local_search(next_population, children.first);
-                    if (static_cast<int>(next_population.size()) < n_population_) {
-                        append_with_mutation_and_local_search(next_population, children.second);
-                    }
+                    child1 = mutate_and_local_search(std::move(children.first));
+                    child2 = mutate_and_local_search(std::move(children.second));
                 } else {
-                    append_with_mutation_and_local_search(next_population, p1);
-                    if (static_cast<int>(next_population.size()) < n_population_) {
-                        append_with_mutation_and_local_search(next_population, p2);
-                    }
+                    child1 = mutate_and_local_search(p1);
+                    child2 = mutate_and_local_search(p2);
+                }
+
+                next_population[idx] = std::move(child1);
+                if (idx + 1 < n_population_) {
+                    next_population[idx + 1] = std::move(child2);
                 }
             }
 
@@ -140,6 +165,7 @@ public:
 
 private:
     std::vector<City> cities_;
+    DistanceMatrix dist_matrix_;
     int n_population_;
     int n_generations_;
     double crossover_rate_;
@@ -172,42 +198,36 @@ private:
             std::shuffle(chrom.begin(), chrom.end(), rng_);
             // Randomly decide whether to run 2-opt on this individual to keep runtime manageable.
             if (random_real() < init_two_opt_prob_) {
-                chrom = two_opt(chrom, cities_, two_opt_passes_init_);
+                chrom = two_opt(chrom, dist_matrix_, two_opt_passes_init_);
             }
-            const double dist = total_distance(chrom, cities_);
+            const double dist = total_distance(chrom, dist_matrix_);
             pop.push_back({chrom, dist});
         }
         return pop;
     }
 
-    std::vector<double> fitness_prob(const std::vector<Individual>& pop) {
-        std::vector<double> fitness_vals;
-        fitness_vals.reserve(pop.size());
+    std::vector<double> fitness_cumulative(const std::vector<Individual>& pop) {
+        std::vector<double> cumulative(pop.size(), 0.0);
         double total_fitness = 0.0;
         for (const auto& ind : pop) {
-            const double f = 1.0 / ind.distance;
-            fitness_vals.push_back(f);
-            total_fitness += f;
+            total_fitness += 1.0 / ind.distance;
         }
-
-        std::vector<double> probs;
-        probs.reserve(pop.size());
-        for (double f : fitness_vals) {
-            probs.push_back(f / total_fitness);
+        double running = 0.0;
+        for (size_t i = 0; i < pop.size(); ++i) {
+            running += (1.0 / pop[i].distance) / total_fitness;
+            cumulative[i] = running;
         }
-        return probs;
+        if (!cumulative.empty()) {
+            cumulative.back() = 1.0; // avoid floating-point gap at the end
+        }
+        return cumulative;
     }
 
-    Individual roulette_wheel(const std::vector<Individual>& pop, const std::vector<double>& probs) {
+    Individual roulette_wheel(const std::vector<Individual>& pop, const std::vector<double>& cumulative) {
         const double r = random_real();
-        double cum_prob = 0.0;
-        for (size_t i = 0; i < pop.size(); ++i) {
-            cum_prob += probs[i];
-            if (r <= cum_prob) {
-                return pop[i];
-            }
-        }
-        return pop.back();
+        const auto it = std::lower_bound(cumulative.begin(), cumulative.end(), r);
+        const size_t idx = static_cast<size_t>(std::distance(cumulative.begin(), (it == cumulative.end()) ? cumulative.end() - 1 : it));
+        return pop[idx];
     }
 
     std::pair<Individual, Individual> crossover(const Individual& p1, const Individual& p2) {
@@ -254,27 +274,26 @@ private:
         }
     }
 
-    void append_with_mutation_and_local_search(std::vector<Individual>& pop, Individual child) {
+    Individual mutate_and_local_search(Individual child) {
         mutate(child.chromosome);
-        // Apply 2-opt only on a subset of offspring to balance quality and speed.
         if (random_real() < offspring_two_opt_prob_) {
-            child.chromosome = two_opt(child.chromosome, cities_, two_opt_passes_offspring_);
+            child.chromosome = two_opt(child.chromosome, dist_matrix_, two_opt_passes_offspring_);
         }
-        child.distance = total_distance(child.chromosome, cities_);
-        pop.push_back(std::move(child));
+        child.distance = total_distance(child.chromosome, dist_matrix_);
+        return child;
     }
 };
 
 int main(int argc, char** argv) {
-    const std::string dataset = (argc > 1) ? argv[1] : "zi929.tsp";
-    const int n_population = 1000;   // Slightly smaller because 2-opt is heavier
-    const int n_generations = 1000; // You can tune these values as needed
+    const std::string dataset = (argc > 1) ? argv[1] : "qa194.tsp";
+    const int n_population = 8192;   // Slightly smaller because 2-opt is heavier
+    const int n_generations = 3000; // You can tune these values as needed
     const double crossover_rate = 0.8;
     const double mutation_rate = 0.2;
     const double init_two_opt_prob = 1.0;         // probability to refine an initial individual
-    const double offspring_two_opt_prob = 0.5;    // probability to refine a child each generation
+    const double offspring_two_opt_prob = 1.0;    // probability to refine a child each generation
     const int two_opt_passes_init = 100;          // cap 2-opt passes for initial population
-    const int two_opt_passes_offspring = 50;     // cap 2-opt passes for offspring
+    const int two_opt_passes_offspring = 2;     // cap 2-opt passes for offspring
 
     try {
         Dataloader dl(dataset);
