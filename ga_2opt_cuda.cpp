@@ -10,8 +10,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include <cuda_runtime.h>
+#include <omp.h>
 
 // Dense distance matrix keeps lookups cache-friendly for GA + 2-opt,
 // so we only pay the sqrt cost once during construction.
@@ -109,6 +108,13 @@ public:
         std::vector<Individual> next_population;
         next_population.resize(static_cast<size_t>(n_population_));
 
+        // Flattened buffers reused across generations to avoid repeated allocations
+        std::vector<int> flat_pop(static_cast<size_t>(n_population_) * cities_.size());
+        std::vector<double> flat_dist(static_cast<size_t>(n_population_));
+        std::vector<int> flat_next_pop(static_cast<size_t>(n_population_) * cities_.size());
+        std::vector<double> flat_next_dist(static_cast<size_t>(n_population_));
+
+        host_fe_ga_allocate(cities_.data(), static_cast<int>(cities_.size()), n_population_);
         for (int gen = 0; gen < n_generations_; ++gen) {
             cumulative_probs = fitness_cumulative(population_);
             next_population.assign(static_cast<size_t>(n_population_), Individual{});
@@ -119,50 +125,70 @@ public:
                 [](const Individual& a, const Individual& b) { return a.distance < b.distance; });
             next_population[0] = *best_it;
 
-            for (int idx = 1; idx < n_population_; idx += 2) {
-                const Individual p1 = roulette_wheel(population_, cumulative_probs);
-                const Individual p2 = roulette_wheel(population_, cumulative_probs);
-
-                Individual child1;
-                Individual child2;
-                if (random_real() < crossover_rate_) {
-                    auto children = crossover(p1, p2);
-                    child1 = mutate(std::move(children.first));
-                    child2 = mutate(std::move(children.second));
-                } else {
-                    child1 = mutate(p1);
-                    child2 = mutate(p2);
-                }
-
-                next_population[idx] = std::move(child1);
-                if (idx + 1 < n_population_) {
-                    next_population[idx + 1] = std::move(child2);
-                }
-            }
-
-            std::vector<int> flat_pop(static_cast<size_t>(n_population_) * cities_.size());
-            std::vector<double> flat_dist(static_cast<size_t>(n_population_));
+            // Flatten current population for GPU
             for (int i = 0; i < n_population_; ++i) {
                 const size_t offset = static_cast<size_t>(i) * cities_.size();
-                std::copy(next_population[i].chromosome.begin(), next_population[i].chromosome.end(),
+                std::copy(population_[i].chromosome.begin(), population_[i].chromosome.end(),
                           flat_pop.begin() + static_cast<long>(offset));
-                flat_dist[static_cast<size_t>(i)] = next_population[i].distance;
+                flat_dist[static_cast<size_t>(i)] = population_[i].distance;
             }
 
-            host_fe_ga_2opt(cities_.data(),
-                            static_cast<int>(cities_.size()),
-                            n_population_,
-                            two_opt_passes_offspring_,
-                            offspring_two_opt_prob_,
-                            flat_pop.data(),
-                            flat_dist.data());
+            // GA step (selection + crossover + mutation) on GPU
+            host_fe_ga_selection_crossover_mutate(cities_.data(),
+                                 static_cast<int>(cities_.size()),
+                                 n_population_,
+                                 crossover_rate_,
+                                 mutation_rate_,
+                                 two_opt_passes_offspring_,
+                                 offspring_two_opt_prob_,
+                                 flat_pop.data(),
+                                 flat_dist.data(),
+                                 flat_next_pop.data(),
+                                 flat_next_dist.data());
 
+#if defined(CUDA_HYBRID_OMP)
+            #pragma omp parallel
+            {
+                std::mt19937 rng(
+                    static_cast<unsigned int>(
+                        std::chrono::high_resolution_clock::now().time_since_epoch().count()) +
+                    static_cast<unsigned int>(omp_get_thread_num() * 9973));
+                std::uniform_real_distribution<double> uni(0.0, 1.0);
+
+                #pragma omp for schedule(dynamic, 2)
+                for (int i = 0; i < n_population_; ++i) {
+                    const size_t offset = static_cast<size_t>(i) * cities_.size();
+
+                    std::vector<int> chrom(
+                        flat_next_pop.begin() + static_cast<long>(offset),
+                        flat_next_pop.begin() + static_cast<long>(offset + cities_.size()));
+
+                    if (uni(rng) < offspring_two_opt_prob_) {
+                        chrom = two_opt(std::move(chrom), dist_matrix_, two_opt_passes_offspring_);
+                    }
+
+                    std::copy(chrom.begin(), chrom.end(),
+                              flat_next_pop.begin() + static_cast<long>(offset));
+                    flat_next_dist[static_cast<size_t>(i)] = total_distance(chrom, dist_matrix_);
+                }
+            }
+#else
+                // Optionally an extra 2-opt refinement pass on the offspring (GPU / CUDA)
+                host_fe_ga_2opt(cities_.data(),
+                                static_cast<int>(cities_.size()),
+                                n_population_,
+                                two_opt_passes_offspring_,
+                                offspring_two_opt_prob_,
+                                flat_next_pop.data(),
+                                flat_next_dist.data());
+#endif
+            // Unflatten back into next_population
             for (int i = 0; i < n_population_; ++i) {
                 const size_t offset = static_cast<size_t>(i) * cities_.size();
-                std::copy(flat_pop.begin() + static_cast<long>(offset),
-                          flat_pop.begin() + static_cast<long>(offset + cities_.size()),
-                          next_population[i].chromosome.begin());
-                next_population[i].distance = flat_dist[static_cast<size_t>(i)];
+                next_population[i].chromosome.assign(
+                    flat_next_pop.begin() + static_cast<long>(offset),
+                    flat_next_pop.begin() + static_cast<long>(offset + cities_.size()));
+                next_population[i].distance = flat_next_dist[static_cast<size_t>(i)];
             }
 
             population_.swap(next_population);
@@ -178,6 +204,7 @@ public:
                 std::cout << "Generation " << gen << " Best Distance: " << best_dist << " Time: " << elapsed.count() << "s" << std::endl;
             }
         }
+        host_fe_ga_free();
 
         const auto best_it = std::min_element(
             population_.begin(), population_.end(),

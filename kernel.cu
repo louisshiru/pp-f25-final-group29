@@ -12,6 +12,9 @@
 
 // ======================== Cuda implementation ========================
 
+// Global persistent GA config used by CUDA kernels.
+static GA2OptConfig g_cfg = {};
+
 __device__ double d_dist_city(const City& a, const City& b) {
     const double dx = a.x - b.x;
     const double dy = a.y - b.y;
@@ -211,60 +214,10 @@ __global__ void ga2opt_normalize_probs_device(const GA2OptConfig cfg, double* d_
     d_probs[idx] /= total;
 }
 
-// NOTE: this kernel is a straightforward, not fully optimized port of ga2opt_run.
-// One thread works on one or two offspring based on its thread id.
-__global__ void ga2opt_cuda_kernel(GA2OptConfig cfg, const double* probs, const City* d_cities, unsigned int seed) {
-
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
-
-    int idx1 = 1 + 2 * tid;
-    int idx2 = idx1 + 1;
-    if (idx1 >= cfg.n_population) return;
-
-    // Very simple xorshift RNG per thread
-    unsigned int state = seed ^ (tid * 9781u + 1u);
-    int p1_idx = roulette_device(cfg.n_population, probs, state);
-    int p2_idx = roulette_device(cfg.n_population, probs, state);
-
-    int* child1_ptr = cfg.d_next_population + idx1 * cfg.n_cities;
-    int* child2_ptr = (idx2 < cfg.n_population) ? cfg.d_next_population + idx2 * cfg.n_cities : nullptr;
-
-    if (rand_real_device(state) < cfg.crossover_rate) {
-        const int* p1 = cfg.d_population + p1_idx * cfg.n_cities;
-        const int* p2 = cfg.d_population + p2_idx * cfg.n_cities;
-        crossover_device(cfg, state, p1, p2, child1_ptr, child2_ptr);
-
-        mutate_device(cfg, child1_ptr, state);
-        two_opt_device(cfg, child1_ptr, cfg.two_opt_passes_offspring, d_cities);
-
-        cfg.d_next_distances[idx1] = d_total_distance(child1_ptr, cfg.n_cities, d_cities);
-
-        if (child2_ptr) {
-            mutate_device(cfg, child2_ptr, state);
-            two_opt_device(cfg, child2_ptr, cfg.two_opt_passes_offspring, d_cities);
-            cfg.d_next_distances[idx2] = d_total_distance(child2_ptr, cfg.n_cities, d_cities);
-        }
-    } else {
-        const int* p1 = cfg.d_population + p1_idx * cfg.n_cities;
-        for (int i = 0; i < cfg.n_cities; ++i) child1_ptr[i] = p1[i];
-        mutate_device(cfg, child1_ptr, state);
-        two_opt_device(cfg, child1_ptr, cfg.two_opt_passes_offspring, d_cities);
-        cfg.d_next_distances[idx1] = d_total_distance(child1_ptr, cfg.n_cities, d_cities);
-
-        if (child2_ptr) {
-            const int* p2 = cfg.d_population + p2_idx * cfg.n_cities;
-            for (int i = 0; i < cfg.n_cities; ++i) child2_ptr[i] = p2[i];
-            mutate_device(cfg, child2_ptr, state);
-            two_opt_device(cfg, child2_ptr, cfg.two_opt_passes_offspring, d_cities);
-            cfg.d_next_distances[idx2] = d_total_distance(child2_ptr, cfg.n_cities, d_cities);
-        }
-    }
-}
-
 // Kernel for GPU-only 2-opt refinement of individuals.
 // Each thread may or may not apply 2-opt to its chromosome depending
 // on offspring_two_opt_prob.
-__global__ void ga2opt_cuda_kernel_2opt_only(GA2OptConfig cfg, const City* d_cities, unsigned int seed) {
+__global__ void ga2opt_cuda_kernel_2opt(GA2OptConfig cfg, const City* d_cities, unsigned int seed) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     if (tid >= cfg.n_population) return;
 
@@ -276,48 +229,6 @@ __global__ void ga2opt_cuda_kernel_2opt_only(GA2OptConfig cfg, const City* d_cit
     }
 }
 
-__global__ void ga2opt_cuda_kernel_no_2opt(GA2OptConfig cfg, const double* probs, const City* d_cities, unsigned int seed) {
-
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
-
-    int idx1 = 1 + 2 * tid;
-    int idx2 = idx1 + 1;
-    if (idx1 >= cfg.n_population) return;
-
-    // Very simple xorshift RNG per thread
-    unsigned int state = seed ^ (tid * 9781u + 1u);
-    int p1_idx = roulette_device(cfg.n_population, probs, state);
-    int p2_idx = roulette_device(cfg.n_population, probs, state);
-
-    int* child1_ptr = cfg.d_next_population + idx1 * cfg.n_cities;
-    int* child2_ptr = (idx2 < cfg.n_population) ? cfg.d_next_population + idx2 * cfg.n_cities : nullptr;
-
-    if (rand_real_device(state) < cfg.crossover_rate) {
-        const int* p1 = cfg.d_population + p1_idx * cfg.n_cities;
-        const int* p2 = cfg.d_population + p2_idx * cfg.n_cities;
-        crossover_device(cfg, state, p1, p2, child1_ptr, child2_ptr);
-        mutate_device(cfg, child1_ptr, state);
-
-        cfg.d_next_distances[idx1] = d_total_distance(child1_ptr, cfg.n_cities, d_cities);
-
-        if (child2_ptr) {
-            mutate_device(cfg, child2_ptr, state);
-            cfg.d_next_distances[idx2] = d_total_distance(child2_ptr, cfg.n_cities, d_cities);
-        }
-    } else {
-        const int* p1 = cfg.d_population + p1_idx * cfg.n_cities;
-        for (int i = 0; i < cfg.n_cities; ++i) child1_ptr[i] = p1[i];
-        mutate_device(cfg, child1_ptr, state);
-        cfg.d_next_distances[idx1] = d_total_distance(child1_ptr, cfg.n_cities, d_cities);
-
-        if (child2_ptr) {
-            const int* p2 = cfg.d_population + p2_idx * cfg.n_cities;
-            for (int i = 0; i < cfg.n_cities; ++i) child2_ptr[i] = p2[i];
-            mutate_device(cfg, child2_ptr, state);
-            cfg.d_next_distances[idx2] = d_total_distance(child2_ptr, cfg.n_cities, d_cities);
-        }
-    }
-}
 
 __global__ void ga2opt_mutate_kernel(GA2OptConfig cfg, unsigned int seed) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -383,59 +294,169 @@ void host_fe_ga_2opt(const City* cities,
                      double offspring_two_opt_prob,
                      int* population,
                      double* distances) {
-    if (!cities || !population || !distances || n_cities <= 0 || n_population <= 0) {
+    if (offspring_two_opt_prob <= 0.0 || !cities || !population || !distances ||
+        n_cities <= 0 || n_population <= 0) {
         return;
     }
 
-    GA2OptConfig cfg;
-    cfg.cities = cities;
-    cfg.n_cities = n_cities;
-    cfg.n_population = n_population;
-    cfg.n_generations = 0;
-    cfg.crossover_rate = 0.0;
-    cfg.mutation_rate = 0.0;
-    cfg.init_two_opt_prob = 0.0;
-    cfg.offspring_two_opt_prob = 0.0;
-    cfg.two_opt_passes_init = 0;
-    cfg.two_opt_passes_offspring = two_opt_passes_offspring;
-    cfg.population = population;
-    cfg.distances = distances;
-    cfg.next_population = nullptr;
-    cfg.next_distances = nullptr;
-    cfg.d_population = nullptr;
-    cfg.d_next_population = nullptr;
-    cfg.d_distances = nullptr;
-    cfg.d_next_distances = nullptr;
+    // Require persistent buffers to be allocated beforehand.
+    if (g_cfg.n_cities != n_cities || g_cfg.n_population != n_population || g_cfg.d_cities == nullptr) {
+        // 未先呼叫 host_fe_ga_allocate；避免錯誤直接返回。
+        return;
+    }
 
-    const size_t cities_bytes = static_cast<size_t>(n_cities) * sizeof(City);
+    g_cfg.cities = cities;
+    g_cfg.two_opt_passes_offspring = two_opt_passes_offspring;
+    g_cfg.offspring_two_opt_prob = offspring_two_opt_prob;
+
     const size_t pop_bytes = static_cast<size_t>(n_population) * static_cast<size_t>(n_cities) * sizeof(int);
     const size_t dist_bytes = static_cast<size_t>(n_population) * sizeof(double);
 
-    City* d_cities = nullptr;
-    cudaMalloc(&d_cities, cities_bytes);
-    cudaMemcpy(d_cities, cities, cities_bytes, cudaMemcpyHostToDevice);
-
-    int* d_population = nullptr;
-    double* d_distances = nullptr;
-    cudaMalloc(&d_population, pop_bytes);
-    cudaMalloc(&d_distances, dist_bytes);
-    cudaMemcpy(d_population, population, pop_bytes, cudaMemcpyHostToDevice);
-
-    cfg.d_population = d_population;
-    cfg.d_distances = d_distances;
-    cfg.offspring_two_opt_prob = offspring_two_opt_prob;
+    // 更新 host 資料到 device
+    cudaMemcpy(g_cfg.d_population, population, pop_bytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(g_cfg.d_distances, distances, dist_bytes, cudaMemcpyHostToDevice);
 
     const int threads = 256;
     const int blocks = (n_population + threads - 1) / threads;
 
     unsigned int seed = static_cast<unsigned int>(time(nullptr));
-    ga2opt_cuda_kernel_2opt_only<<<blocks, threads>>>(cfg, d_cities, seed);
+    ga2opt_cuda_kernel_2opt<<<blocks, threads>>>(g_cfg, g_cfg.d_cities, seed);
     cudaDeviceSynchronize();
 
-    cudaMemcpy(population, d_population, pop_bytes, cudaMemcpyDeviceToHost);
-    cudaMemcpy(distances, d_distances, dist_bytes, cudaMemcpyDeviceToHost);
+    cudaMemcpy(population, g_cfg.d_population, pop_bytes, cudaMemcpyDeviceToHost);
+    cudaMemcpy(distances, g_cfg.d_distances, dist_bytes, cudaMemcpyDeviceToHost);
+}
 
-    cudaFree(d_cities);
-    cudaFree(d_population);
-    cudaFree(d_distances);
+// Full GA step on GPU: selection + crossover + mutation + distance evaluation.
+// population/distances: current generation (size n_population * n_cities, n_population)
+// next_population/next_distances: output generation; index 0 is elitism copy.
+void host_fe_ga_selection_crossover_mutate(const City* cities,
+                          int n_cities,
+                          int n_population,
+                          double crossover_rate,
+                          double mutation_rate,
+                          int two_opt_passes_offspring,
+                          double offspring_two_opt_prob,
+                          const int* population,
+                          const double* distances,
+                          int* next_population,
+                          double* next_distances) {
+
+    if (!cities || !population || !distances || !next_population || !next_distances ||
+        n_cities <= 0 || n_population <= 0) {
+        return;
+    }
+
+    // Must have persistent buffers prepared.
+    if (g_cfg.n_cities != n_cities || g_cfg.n_population != n_population || g_cfg.d_cities == nullptr) {
+        return;
+    }
+
+    const size_t pop_bytes = static_cast<size_t>(n_population) * static_cast<size_t>(n_cities) * sizeof(int);
+    const size_t dist_bytes = static_cast<size_t>(n_population) * sizeof(double);
+
+    // 更新目前世代到 device
+    cudaMemcpy(g_cfg.d_population, population, pop_bytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(g_cfg.d_distances, distances, dist_bytes, cudaMemcpyHostToDevice);
+
+    g_cfg.cities = cities;
+    g_cfg.crossover_rate = crossover_rate;
+    g_cfg.mutation_rate = mutation_rate;
+    g_cfg.two_opt_passes_offspring = two_opt_passes_offspring;
+    g_cfg.offspring_two_opt_prob = offspring_two_opt_prob;
+
+    // elitism 個體 index 0
+    cudaMemcpy(g_cfg.d_next_population, g_cfg.d_population, static_cast<size_t>(n_cities) * sizeof(int), cudaMemcpyDeviceToDevice);
+    cudaMemcpy(g_cfg.d_next_distances, g_cfg.d_distances, sizeof(double), cudaMemcpyDeviceToDevice);
+
+    const int threads = 256;
+    const int blocks = (n_population + threads - 1) / threads;
+
+    // 1) compute raw fitness and block partial sums on device
+    ga2opt_compute_fitness_prob_device<<<blocks, threads, static_cast<size_t>(threads) * sizeof(double)>>>(g_cfg, g_cfg.d_distances, g_cfg.d_probs);
+    cudaDeviceSynchronize();
+
+    // 2) reduce partial sums on host to get total fitness
+    std::vector<double> h_partial(static_cast<size_t>(blocks));
+    cudaMemcpy(h_partial.data(), g_cfg.d_probs + n_population, static_cast<size_t>(blocks) * sizeof(double), cudaMemcpyDeviceToHost);
+    double total = 0.0;
+    for (int i = 0; i < blocks; ++i) total += h_partial[static_cast<size_t>(i)];
+
+    // 3) normalize probabilities on device
+    ga2opt_normalize_probs_device<<<blocks, threads>>>(g_cfg, g_cfg.d_probs, total);
+    cudaDeviceSynchronize();
+
+    // 4) selection + crossover into d_next_population (indices >=1)
+    unsigned int seed = static_cast<unsigned int>(time(nullptr));
+    ga2opt_select_and_crossover_kernel<<<blocks, threads>>>(g_cfg, g_cfg.d_probs, g_cfg.d_cities, seed);
+    cudaDeviceSynchronize();
+
+    // 5) mutation on d_next_pop (except index 0)
+    ga2opt_mutate_kernel<<<blocks, threads>>>(g_cfg, seed ^ 0x123456u);
+    cudaDeviceSynchronize();
+
+    // 6) evaluate distances for all next_population
+    ga2opt_eval_distance_kernel<<<blocks, threads>>>(g_cfg, g_cfg.d_cities);
+    cudaDeviceSynchronize();
+
+    // Copy back results
+    cudaMemcpy(next_population, g_cfg.d_next_population, pop_bytes, cudaMemcpyDeviceToHost);
+    cudaMemcpy(next_distances, g_cfg.d_next_distances, dist_bytes, cudaMemcpyDeviceToHost);
+}
+
+// New allocation API: allocate persistent device buffers for GA.
+void host_fe_ga_allocate(const City* cities,
+                         int n_cities,
+                         int n_population)
+{
+    if (!cities || n_cities <= 0 || n_population <= 0) return;
+
+    // If config already matches, only update city coordinates.
+    if (g_cfg.d_cities && g_cfg.n_cities == n_cities && g_cfg.n_population == n_population) {
+        const size_t cities_bytes = static_cast<size_t>(n_cities) * sizeof(City);
+        cudaMemcpy(g_cfg.d_cities, cities, cities_bytes, cudaMemcpyHostToDevice);
+        g_cfg.cities = cities;
+        return;
+    }
+
+    // Otherwise free any existing buffers and reallocate.
+    if (g_cfg.d_probs)          cudaFree(g_cfg.d_probs);
+    if (g_cfg.d_next_distances) cudaFree(g_cfg.d_next_distances);
+    if (g_cfg.d_next_population)cudaFree(g_cfg.d_next_population);
+    if (g_cfg.d_distances)      cudaFree(g_cfg.d_distances);
+    if (g_cfg.d_population)     cudaFree(g_cfg.d_population);
+    if (g_cfg.d_cities)         cudaFree(g_cfg.d_cities);
+
+    std::memset(&g_cfg, 0, sizeof(GA2OptConfig));
+    g_cfg.cities = cities;
+    g_cfg.n_cities = n_cities;
+    g_cfg.n_population = n_population;
+
+    const size_t cities_bytes = static_cast<size_t>(n_cities) * sizeof(City);
+    const size_t pop_bytes = static_cast<size_t>(n_population) * static_cast<size_t>(n_cities) * sizeof(int);
+    const size_t dist_bytes = static_cast<size_t>(n_population) * sizeof(double);
+
+    cudaMalloc(&g_cfg.d_cities, cities_bytes);
+    cudaMemcpy(g_cfg.d_cities, cities, cities_bytes, cudaMemcpyHostToDevice);
+
+    cudaMalloc(&g_cfg.d_population, pop_bytes);
+    cudaMalloc(&g_cfg.d_next_population, pop_bytes);
+    cudaMalloc(&g_cfg.d_distances, dist_bytes);
+    cudaMalloc(&g_cfg.d_next_distances, dist_bytes);
+
+    const int threads = 256;
+    const int blocks = (n_population + threads - 1) / threads;
+    cudaMalloc(&g_cfg.d_probs, static_cast<size_t>(n_population + blocks) * sizeof(double));
+}
+
+void host_fe_ga_free()
+{
+    if (g_cfg.d_probs)          cudaFree(g_cfg.d_probs);
+    if (g_cfg.d_next_distances) cudaFree(g_cfg.d_next_distances);
+    if (g_cfg.d_next_population)cudaFree(g_cfg.d_next_population);
+    if (g_cfg.d_distances)      cudaFree(g_cfg.d_distances);
+    if (g_cfg.d_population)     cudaFree(g_cfg.d_population);
+    if (g_cfg.d_cities)         cudaFree(g_cfg.d_cities);
+
+    std::memset(&g_cfg, 0, sizeof(GA2OptConfig));
 }

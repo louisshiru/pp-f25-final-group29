@@ -36,7 +36,13 @@ GA2_CUDA_SRC := dataloader.cpp ga_2opt_cuda.cpp
 GA2_CUDA_CU  := kernel.cu
 GA2_CUDA_OBJ := $(GA2_CUDA_SRC:.cpp=.o) $(GA2_CUDA_CU:.cu=.o)
 GA2_CUDA_TARGET := tsp_ga2opt_cuda
-GA2_CUDA_FLAG := -Ilib -std=c++11 -O2 -arch=sm_61
+GA2_CUDA_FLAG := -Ilib -std=c++11 -O2 -arch=sm_61 -lgomp
+
+# Enable CUDA_HYBRID_OMP only when requested, e.g.:
+#   make GA2_CUDA_TARGET CUDA_HYBRID_OMP=True
+ifeq ($(CUDA_HYBRID_OMP),True)
+C_FLAG += -DCUDA_HYBRID_OMP
+endif
 
 GPROF_RESULT := gmon.out profiling_result
 
