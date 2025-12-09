@@ -30,28 +30,16 @@ struct GA2OptConfig {
 };
 
 // Host front-end for GPU 2-opt refinement; operates on raw arrays.
-void host_fe_ga_2opt(const City* cities,
-                     int n_cities,
-                     int n_population,
-                     int two_opt_passes_offspring,
-                     double offspring_two_opt_prob,
-                     int* population,
-                     double* distances);
+void host_fe_ga_2opt(int two_opt_passes_offspring,
+                     double offspring_two_opt_prob);
 
 // Host front-ends for GA crossover + mutation on GPU.
 // They take the current population and distances, and produce the
 // next generation (including elitism at index 0).
-void host_fe_ga_selection_crossover_mutate(const City* cities,
-                          int n_cities,
-                          int n_population,
-                          double crossover_rate,
+void host_fe_ga_selection_crossover_mutate(double crossover_rate,
                           double mutation_rate,
                           int two_opt_passes_offspring,
-                          double offspring_two_opt_prob,
-                          const int* population,
-                          const double* distances,
-                          int* next_population,
-                          double* next_distances);
+                          double offspring_two_opt_prob);
 
 // Allocate / free persistent device buffers used by GA+2opt.
 // These must be called before / after any GA CUDA calls.
@@ -59,5 +47,11 @@ void host_fe_ga_allocate(const City* cities,
                          int n_cities,
                          int n_population);
 void host_fe_ga_free();
+
+// Explicit host↔device population copy helpers.
+void host_fe_ga_copy_population_to_device(const int* population,
+                                          const double* distances);
+void host_fe_ga_copy_population_to_host(int* population,
+                                        double* distances);
 
 #endif /* KERNEL_H */

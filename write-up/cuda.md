@@ -312,76 +312,15 @@ Time: 23.7067 s
 
 ## GA - all (cuda 2pass opt)
 
+./tsp_ga2opt_cuda 
 Starting GA + 2-opt for TSP (qa194.tsp)...
-Generation 0 Best Distance: 62666.8 Time: 0.359478s
-Generation 100 Best Distance: 45647.5 Time: 0.734488s
-Generation 200 Best Distance: 33436.3 Time: 0.99991s
-Generation 300 Best Distance: 18226.1 Time: -0.077482s
-Generation 400 Best Distance: 12081.3 Time: 1.94488s
-Generation 500 Best Distance: 9919 Time: 2.16074s
-Generation 600 Best Distance: 9919 Time: 2.03468s
-Generation 700 Best Distance: 9919 Time: 1.99053s
-Generation 800 Best Distance: 9919 Time: 1.90088s
-Generation 900 Best Distance: 9919 Time: 2.03537s
-Generation 1000 Best Distance: 9919 Time: 1.90361s
-Generation 1100 Best Distance: 9919 Time: 2.07738s
-Generation 1200 Best Distance: 9919 Time: 2.11568s
-Generation 1300 Best Distance: 9919 Time: 2.03414s
-Generation 1400 Best Distance: 9919 Time: 2.00823s
-Generation 1500 Best Distance: 9919 Time: 1.92942s
-Generation 1600 Best Distance: 9919 Time: 2.08595s
-Generation 1700 Best Distance: 9919 Time: 2.12803s
-Generation 1800 Best Distance: 9919 Time: 2.05232s
-Generation 1900 Best Distance: 9919 Time: 0.547066s
-Generation 2000 Best Distance: 9919 Time: 1.94236s
-Generation 2100 Best Distance: 9919 Time: 1.81082s
-Generation 2200 Best Distance: 9865.34 Time: 1.52057s
-Generation 2300 Best Distance: 9865.34 Time: 2.36609s
-Generation 2400 Best Distance: 9865.34 Time: 1.8413s
-Generation 2500 Best Distance: 9865.34 Time: 1.97268s
-Generation 2600 Best Distance: 9865.34 Time: 2.10027s
-Generation 2700 Best Distance: 9865.34 Time: 1.94378s
-Generation 2800 Best Distance: 9865.34 Time: 2.0179s
-Generation 2900 Best Distance: 9865.34 Time: 1.99654s
-Generation 2999 Best Distance: 9865.34 Time: 2.04466s
-Final Best Distance: 9865.34
-Time: 54.5238 s
+Final Best Distance: 9516.78
+Best Route: 130 117 121 140 143 149 153 156 152 151 146 150 154 147 142 159 165 170 169 166 161 157 158 164 167 177 179 184 192 187 190 191 188 183 180 176 174 172 173 171 178 185 182 186 189 193 181 175 168 163 162 160 155 144 139 141 148 145 138 137 136 133 131 129 126 124 125 118 112 108 113 110 103 100 98 93 88 89 97 85 84 64 19 62 35 58 61 81 70 75 79 86 101 102 105 104 106 107 96 95 92 94 91 87 90 77 74 71 73 68 59 56 44 28 21 27 32 17 20 23 25 16 6 10 13 24 22 12 15 7 5 0 3 1 2 4 8 9 11 14 18 29 31 30 34 37 40 43 41 49 48 54 53 45 47 51 52 55 57 46 42 39 33 38 26 36 50 60 66 72 65 67 63 69 76 78 80 82 83 99 109 111 114 115 116 120 119 122 123 127 132 128 134 135 130
+Time: 50.092 s
 
 ## GA - all (cuda 1pass opt)
-Starting GA + 2-opt for TSP (qa194.tsp)...
-Generation 0 Best Distance: 61806.4 Time: 0.170359s
-Generation 100 Best Distance: 56053.5 Time: 0.638494s
-Generation 200 Best Distance: 49808.6 Time: 0.633721s
-Generation 300 Best Distance: 46227.8 Time: 0.628585s
-Generation 400 Best Distance: 37478.1 Time: 0.630856s
-Generation 500 Best Distance: 34165.7 Time: 0.66427s
-Generation 600 Best Distance: 31030.8 Time: 0.805135s
-Generation 700 Best Distance: 23485.3 Time: 0.94823s
-Generation 800 Best Distance: 16862.1 Time: 1.10435s
-Generation 900 Best Distance: 11593.4 Time: -0.633413s
-Generation 1000 Best Distance: 9857.57 Time: 1.16018s
-Generation 1100 Best Distance: 9857.57 Time: 1.27215s
-Generation 1200 Best Distance: 9857.57 Time: 1.27064s
-Generation 1300 Best Distance: 9857.57 Time: 1.26126s
-Generation 1400 Best Distance: 9857.57 Time: 1.25746s
-Generation 1500 Best Distance: 9854.58 Time: 1.2636s
-Generation 1600 Best Distance: 9857.57 Time: 1.27852s
-Generation 1700 Best Distance: 9857.57 Time: 1.27818s
-Generation 1800 Best Distance: 9857.57 Time: 1.28179s
-Generation 1900 Best Distance: 9857.57 Time: 1.27155s
-Generation 2000 Best Distance: 9857.57 Time: 1.26914s
-Generation 2100 Best Distance: 9857.57 Time: 1.25769s
-Generation 2200 Best Distance: 9857.57 Time: 1.26104s
-Generation 2300 Best Distance: 9857.57 Time: 1.26949s
-Generation 2400 Best Distance: 9857.57 Time: 1.26171s
-Generation 2500 Best Distance: 9857.57 Time: 1.29203s
-Generation 2600 Best Distance: 9857.57 Time: 1.25978s
-Generation 2700 Best Distance: 9857.57 Time: 1.2802s
-Generation 2800 Best Distance: 9857.57 Time: 1.27938s
-Generation 2900 Best Distance: 9857.57 Time: 1.28748s
-Generation 2999 Best Distance: 9857.57 Time: 1.2526s
-Final Best Distance: 9857.57
-Time: 32.1579 s
+Final Best Distance: 9610.14
+Time: 29.0468 s
 
 # New data on department server
 
@@ -493,42 +432,6 @@ Generation 2999 Best Distance: 10201.6 Time: 2.9062s
 Final Best Distance: 10201.6
 Time: 84.7422 s
 
-## GA - without 2opt (cuda)
-
-Starting GA + 2-opt for TSP (qa194.tsp)...
-Generation 0 Best Distance: 61013.4 Time: 0.186079s
-Generation 100 Best Distance: 65671.6 Time: 1.02521s
-Generation 200 Best Distance: 69224.8 Time: 0.747305s
-Generation 300 Best Distance: 67259.6 Time: 0.745173s
-Generation 400 Best Distance: 64707.1 Time: 0.740573s
-Generation 500 Best Distance: 62168.8 Time: 0.73658s
-Generation 600 Best Distance: 60395 Time: 0.740522s
-Generation 700 Best Distance: 60956.4 Time: 0.737265s
-Generation 800 Best Distance: 59143.4 Time: 0.733954s
-Generation 900 Best Distance: 59097.2 Time: 0.746769s
-Generation 1000 Best Distance: 57016.5 Time: 0.741267s
-Generation 1100 Best Distance: 55121.7 Time: 0.726456s
-Generation 1200 Best Distance: 54046.1 Time: 0.733297s
-Generation 1300 Best Distance: 53485.6 Time: 0.736904s
-Generation 1400 Best Distance: 52769.8 Time: 0.734935s
-Generation 1500 Best Distance: 53134.1 Time: 0.737051s
-Generation 1600 Best Distance: 50898.5 Time: 0.734591s
-Generation 1700 Best Distance: 52044.8 Time: 0.736981s
-Generation 1800 Best Distance: 49821 Time: 0.729532s
-Generation 1900 Best Distance: 47634.4 Time: 0.726247s
-Generation 2000 Best Distance: 48147.3 Time: 0.723492s
-Generation 2100 Best Distance: 47866.7 Time: 0.721016s
-Generation 2200 Best Distance: 48071.7 Time: 0.722485s
-Generation 2300 Best Distance: 47325.2 Time: 0.73922s
-Generation 2400 Best Distance: 47322.2 Time: 0.72695s
-Generation 2500 Best Distance: 47907.3 Time: 0.726528s
-Generation 2600 Best Distance: 47945.1 Time: 0.731565s
-Generation 2700 Best Distance: 47446.4 Time: 0.72615s
-Generation 2800 Best Distance: 46943.8 Time: 0.726987s
-Generation 2900 Best Distance: 46975.9 Time: 0.725636s
-Generation 2999 Best Distance: 46138.4 Time: 0.717003s
-Time: 22.4649 s
-
 ## GA - omp-2opt, cuda-default ga
 
 Generation 0 Best Distance: 62156 Time: 0.226406s
@@ -568,73 +471,15 @@ Time: 341.824 s
 
 
 ## GA - all (cuda 2pass opt)
-Starting GA + 2-opt for TSP (qa194.tsp)...
-Generation 0 Best Distance: 60620.1 Time: 0.231019s
-Generation 100 Best Distance: 46466.6 Time: 1.30754s
-Generation 200 Best Distance: 31282.1 Time: 1.57805s
-Generation 300 Best Distance: 18377.8 Time: 2.29582s
-Generation 400 Best Distance: 12926.8 Time: 2.88139s
-Generation 500 Best Distance: 9928.38 Time: 3.99911s
-Generation 600 Best Distance: 9928.38 Time: 3.78845s
-Generation 700 Best Distance: 9928.38 Time: 3.54511s
-Generation 800 Best Distance: 9928.38 Time: 3.78583s
-Generation 900 Best Distance: 9928.38 Time: 4.09457s
-Generation 1000 Best Distance: 9928.38 Time: 3.35349s
-Generation 1100 Best Distance: 9928.38 Time: 3.4265s
-Generation 1200 Best Distance: 9928.38 Time: 3.26547s
-Generation 1300 Best Distance: 9928.38 Time: 3.64244s
-Generation 1400 Best Distance: 9928.22 Time: 4.20377s
-Generation 1500 Best Distance: 9928.38 Time: 3.74403s
-Generation 1600 Best Distance: 9928.38 Time: 3.66552s
-Generation 1700 Best Distance: 9928.38 Time: 4.03959s
-Generation 1800 Best Distance: 9928.38 Time: 3.49462s
-Generation 1900 Best Distance: 9928.38 Time: 3.41801s
-Generation 2000 Best Distance: 9928.38 Time: 3.58607s
-Generation 2100 Best Distance: 9920.47 Time: 3.19117s
-Generation 2200 Best Distance: 9928.38 Time: 3.49177s
-Generation 2300 Best Distance: 9928.38 Time: 3.42037s
-Generation 2400 Best Distance: 9928.38 Time: 3.6116s
-Generation 2500 Best Distance: 9928.38 Time: 3.41576s
-Generation 2600 Best Distance: 9928.38 Time: 3.80831s
-Generation 2700 Best Distance: 9928.38 Time: 3.55844s
-Generation 2800 Best Distance: 9928.38 Time: 3.40399s
-Generation 2900 Best Distance: 9928.38 Time: 3.29727s
-Generation 2999 Best Distance: 9928.38 Time: 3.29004s
-Final Best Distance: 9928.38
-Time: 101.836 s
+Final Best Distance: 9369.88
+Time: 101.87 s
 
 ## GA - all (cuda 1pass opt)
 Starting GA + 2-opt for TSP (qa194.tsp)...
-Generation 0 Best Distance: 61484.1 Time: 0.458778s
-Generation 100 Best Distance: 58002.7 Time: 1.40557s
-Generation 200 Best Distance: 49628.2 Time: 1.17707s
-Generation 300 Best Distance: 40245.9 Time: 1.24035s
-Generation 400 Best Distance: 32944.2 Time: 1.28287s
-Generation 500 Best Distance: 25933.7 Time: 1.44438s
-Generation 600 Best Distance: 18337.7 Time: 1.51881s
-Generation 700 Best Distance: 13971.3 Time: 1.69342s
-Generation 800 Best Distance: 11651 Time: 2.06185s
-Generation 900 Best Distance: 9965.29 Time: 2.39192s
-Generation 1000 Best Distance: 9965.29 Time: 2.61485s
-Generation 1100 Best Distance: 9965.29 Time: 2.48154s
-Generation 1200 Best Distance: 9965.29 Time: 2.56477s
-Generation 1300 Best Distance: 9965.29 Time: 2.3854s
-Generation 1400 Best Distance: 9965.29 Time: 2.64797s
-Generation 1500 Best Distance: 9965.29 Time: 2.30159s
-Generation 1600 Best Distance: 9958.01 Time: 2.59702s
-Generation 1700 Best Distance: 9965.29 Time: 2.67633s
-Generation 1800 Best Distance: 9965.29 Time: 2.25805s
-Generation 1900 Best Distance: 9965.29 Time: 2.45486s
-Generation 2000 Best Distance: 9965.29 Time: 2.5629s
-Generation 2100 Best Distance: 9965.29 Time: 2.24415s
-Generation 2200 Best Distance: 9965.29 Time: 3.27258s
-Generation 2300 Best Distance: 9965.29 Time: 2.38894s
-Generation 2400 Best Distance: 9965.29 Time: 2.58965s
-Generation 2500 Best Distance: 9965.29 Time: 2.53335s
-Generation 2600 Best Distance: 9965.29 Time: 3.01977s
-Generation 2700 Best Distance: 9965.29 Time: 2.41702s
-Generation 2800 Best Distance: 9965.29 Time: 2.70383s
-Generation 2900 Best Distance: 9965.29 Time: 2.33674s
-Generation 2999 Best Distance: 9965.29 Time: 2.53935s
-Final Best Distance: 9965.29
-Time: 68.2668 s
+Final Best Distance: 9559.14
+Time: 49.5141 s
+
+## GA - without 2opt (cuda)
+Starting GA + 2-opt for TSP (qa194.tsp)...
+Final Best Distance: 30466.5
+Time: 15.9912 s

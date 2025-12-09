@@ -286,90 +286,64 @@ __global__ void ga2opt_select_and_crossover_kernel(
     // 這裡「不做 mutation、不算距離」，讓 branch 減少
 }
 
-void host_fe_ga_2opt(const City* cities,
-                     int n_cities,
-                     int n_population,
-                     int two_opt_passes_offspring,
-                     double offspring_two_opt_prob,
-                     int* population,
-                     double* distances) {
-    if (offspring_two_opt_prob <= 0.0 || !cities || !population || !distances ||
-        n_cities <= 0 || n_population <= 0) {
+void host_fe_ga_2opt(int two_opt_passes_offspring,
+                     double offspring_two_opt_prob) {
+    if (offspring_two_opt_prob <= 0.0 || g_cfg.d_population == nullptr || g_cfg.d_distances == nullptr ||
+        g_cfg.n_cities <= 0 || g_cfg.n_population <= 0) {
         return;
     }
 
-    // Require persistent buffers to be allocated beforehand.
-    if (g_cfg.n_cities != n_cities || g_cfg.n_population != n_population || g_cfg.d_cities == nullptr) {
-        // 未先呼叫 host_fe_ga_allocate；避免錯誤直接返回。
-        return;
-    }
-
-    g_cfg.cities = cities;
     g_cfg.two_opt_passes_offspring = two_opt_passes_offspring;
     g_cfg.offspring_two_opt_prob = offspring_two_opt_prob;
 
-    const size_t pop_bytes = static_cast<size_t>(n_population) * static_cast<size_t>(n_cities) * sizeof(int);
-    const size_t dist_bytes = static_cast<size_t>(n_population) * sizeof(double);
-
-    // 更新 host 資料到 device
-    cudaMemcpy(g_cfg.d_population, population, pop_bytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(g_cfg.d_distances, distances, dist_bytes, cudaMemcpyHostToDevice);
-
     const int threads = 256;
-    const int blocks = (n_population + threads - 1) / threads;
+    const int blocks = (g_cfg.n_population + threads - 1) / threads;
 
     unsigned int seed = static_cast<unsigned int>(time(nullptr));
     ga2opt_cuda_kernel_2opt<<<blocks, threads>>>(g_cfg, seed);
     cudaDeviceSynchronize();
-
-    cudaMemcpy(population, g_cfg.d_population, pop_bytes, cudaMemcpyDeviceToHost);
-    cudaMemcpy(distances, g_cfg.d_distances, dist_bytes, cudaMemcpyDeviceToHost);
 }
 
 // Full GA step on GPU: selection + crossover + mutation + distance evaluation.
 // population/distances: current generation (size n_population * n_cities, n_population)
 // next_population/next_distances: output generation; index 0 is elitism copy.
-void host_fe_ga_selection_crossover_mutate(const City* cities,
-                          int n_cities,
-                          int n_population,
-                          double crossover_rate,
+void host_fe_ga_selection_crossover_mutate(double crossover_rate,
                           double mutation_rate,
                           int two_opt_passes_offspring,
-                          double offspring_two_opt_prob,
-                          const int* population,
-                          const double* distances,
-                          int* next_population,
-                          double* next_distances) {
+                          double offspring_two_opt_prob) {
 
-    if (!cities || !population || !distances || !next_population || !next_distances ||
-        n_cities <= 0 || n_population <= 0) {
+    if (g_cfg.d_population == nullptr || g_cfg.d_distances == nullptr || g_cfg.d_cities == nullptr ||
+        g_cfg.n_cities <= 0 || g_cfg.n_population <= 0) {
         return;
     }
 
-    // Must have persistent buffers prepared.
-    if (g_cfg.n_cities != n_cities || g_cfg.n_population != n_population || g_cfg.d_cities == nullptr) {
-        return;
-    }
-
-    const size_t pop_bytes = static_cast<size_t>(n_population) * static_cast<size_t>(n_cities) * sizeof(int);
-    const size_t dist_bytes = static_cast<size_t>(n_population) * sizeof(double);
-
-    // 更新目前世代到 device
-    cudaMemcpy(g_cfg.d_population, population, pop_bytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(g_cfg.d_distances, distances, dist_bytes, cudaMemcpyHostToDevice);
-
-    g_cfg.cities = cities;
     g_cfg.crossover_rate = crossover_rate;
     g_cfg.mutation_rate = mutation_rate;
     g_cfg.two_opt_passes_offspring = two_opt_passes_offspring;
     g_cfg.offspring_two_opt_prob = offspring_two_opt_prob;
 
-    // elitism 個體 index 0
-    cudaMemcpy(g_cfg.d_next_population, g_cfg.d_population, static_cast<size_t>(n_cities) * sizeof(int), cudaMemcpyDeviceToDevice);
-    cudaMemcpy(g_cfg.d_next_distances, g_cfg.d_distances, sizeof(double), cudaMemcpyDeviceToDevice);
+    // 在 device 端找出當前世代的最佳個體，做真正的 elitism
+    int* d_best_idx = nullptr;
+    cudaMalloc(&d_best_idx, sizeof(int));
+    ga2opt_find_best_kernel<<<1, 1>>>(g_cfg, g_cfg.d_distances, d_best_idx);
+    cudaDeviceSynchronize();
+
+    int best_idx = 0;
+    cudaMemcpy(&best_idx, d_best_idx, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaFree(d_best_idx);
+
+    // 將最佳個體複製到下一代的 index 0
+    cudaMemcpy(g_cfg.d_next_population,
+               g_cfg.d_population + best_idx * g_cfg.n_cities,
+               static_cast<size_t>(g_cfg.n_cities) * sizeof(int),
+               cudaMemcpyDeviceToDevice);
+    cudaMemcpy(g_cfg.d_next_distances,
+               g_cfg.d_distances + best_idx,
+               sizeof(double),
+               cudaMemcpyDeviceToDevice);
 
     const int threads = 256;
-    const int blocks = (n_population + threads - 1) / threads;
+    const int blocks = (g_cfg.n_population + threads - 1) / threads;
 
     // 1) compute raw fitness and block partial sums on device
     ga2opt_compute_fitness_prob_device<<<blocks, threads, static_cast<size_t>(threads) * sizeof(double)>>>(g_cfg, g_cfg.d_distances, g_cfg.d_probs);
@@ -377,7 +351,7 @@ void host_fe_ga_selection_crossover_mutate(const City* cities,
 
     // 2) reduce partial sums on host to get total fitness
     std::vector<double> h_partial(static_cast<size_t>(blocks));
-    cudaMemcpy(h_partial.data(), g_cfg.d_probs + n_population, static_cast<size_t>(blocks) * sizeof(double), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_partial.data(), g_cfg.d_probs + g_cfg.n_population, static_cast<size_t>(blocks) * sizeof(double), cudaMemcpyDeviceToHost);
     double total = 0.0;
     for (int i = 0; i < blocks; ++i) total += h_partial[static_cast<size_t>(i)];
 
@@ -398,9 +372,14 @@ void host_fe_ga_selection_crossover_mutate(const City* cities,
     ga2opt_eval_distance_kernel<<<blocks, threads>>>(g_cfg);
     cudaDeviceSynchronize();
 
-    // Copy back results
-    cudaMemcpy(next_population, g_cfg.d_next_population, pop_bytes, cudaMemcpyDeviceToHost);
-    cudaMemcpy(next_distances, g_cfg.d_next_distances, dist_bytes, cudaMemcpyDeviceToHost);
+    // Swap current and next population buffers on device.
+    int* tmp_pop = g_cfg.d_population;
+    g_cfg.d_population = g_cfg.d_next_population;
+    g_cfg.d_next_population = tmp_pop;
+
+    double* tmp_dist = g_cfg.d_distances;
+    g_cfg.d_distances = g_cfg.d_next_distances;
+    g_cfg.d_next_distances = tmp_dist;
 }
 
 // New allocation API: allocate persistent device buffers for GA.
@@ -479,4 +458,34 @@ void host_fe_ga_free()
     if (g_cfg.d_cities)         cudaFree(g_cfg.d_cities);
 
     std::memset(&g_cfg, 0, sizeof(GA2OptConfig));
+}
+
+void host_fe_ga_copy_population_to_device(const int* population,
+                                          const double* distances)
+{
+    if (!population || !distances || g_cfg.d_population == nullptr || g_cfg.d_distances == nullptr ||
+        g_cfg.n_cities <= 0 || g_cfg.n_population <= 0) {
+        return;
+    }
+
+    const size_t pop_bytes = static_cast<size_t>(g_cfg.n_population) * static_cast<size_t>(g_cfg.n_cities) * sizeof(int);
+    const size_t dist_bytes = static_cast<size_t>(g_cfg.n_population) * sizeof(double);
+
+    cudaMemcpy(g_cfg.d_population, population, pop_bytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(g_cfg.d_distances, distances, dist_bytes, cudaMemcpyHostToDevice);
+}
+
+void host_fe_ga_copy_population_to_host(int* population,
+                                        double* distances)
+{
+    if (!population || !distances || g_cfg.d_population == nullptr || g_cfg.d_distances == nullptr ||
+        g_cfg.n_cities <= 0 || g_cfg.n_population <= 0) {
+        return;
+    }
+
+    const size_t pop_bytes = static_cast<size_t>(g_cfg.n_population) * static_cast<size_t>(g_cfg.n_cities) * sizeof(int);
+    const size_t dist_bytes = static_cast<size_t>(g_cfg.n_population) * sizeof(double);
+
+    cudaMemcpy(population, g_cfg.d_population, pop_bytes, cudaMemcpyDeviceToHost);
+    cudaMemcpy(distances, g_cfg.d_distances, dist_bytes, cudaMemcpyDeviceToHost);
 }

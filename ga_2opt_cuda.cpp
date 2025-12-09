@@ -104,118 +104,56 @@ public:
 
     void run() {
         auto start_time = std::chrono::high_resolution_clock::now();
-        std::vector<double> cumulative_probs;
-        std::vector<Individual> next_population;
-        next_population.resize(static_cast<size_t>(n_population_));
-
-        // Flattened buffers reused across generations to avoid repeated allocations
+        // Flattened buffers reused across generations (host-side snapshots)
         std::vector<int> flat_pop(static_cast<size_t>(n_population_) * cities_.size());
         std::vector<double> flat_dist(static_cast<size_t>(n_population_));
-        std::vector<int> flat_next_pop(static_cast<size_t>(n_population_) * cities_.size());
-        std::vector<double> flat_next_dist(static_cast<size_t>(n_population_));
-
+        
+        // Initialize device resources and upload initial population once
         host_fe_ga_allocate(cities_.data(), static_cast<int>(cities_.size()), n_population_);
+        for (int i = 0; i < n_population_; ++i) {
+            const size_t offset = static_cast<size_t>(i) * cities_.size();
+            std::copy(population_[i].chromosome.begin(), population_[i].chromosome.end(),
+                      flat_pop.begin() + static_cast<long>(offset));
+            flat_dist[static_cast<size_t>(i)] = population_[i].distance;
+        }
+        host_fe_ga_copy_population_to_device(flat_pop.data(), flat_dist.data());
+
         for (int gen = 0; gen < n_generations_; ++gen) {
-            cumulative_probs = fitness_cumulative(population_);
-            next_population.assign(static_cast<size_t>(n_population_), Individual{});
 
-            // Elitism: keep the current best individual.
-            const auto best_it = std::min_element(
-                population_.begin(), population_.end(),
-                [](const Individual& a, const Individual& b) { return a.distance < b.distance; });
-            next_population[0] = *best_it;
-
-            // Flatten current population for GPU
-            for (int i = 0; i < n_population_; ++i) {
-                const size_t offset = static_cast<size_t>(i) * cities_.size();
-                std::copy(population_[i].chromosome.begin(), population_[i].chromosome.end(),
-                          flat_pop.begin() + static_cast<long>(offset));
-                flat_dist[static_cast<size_t>(i)] = population_[i].distance;
-            }
-
-            // GA step (selection + crossover + mutation) on GPU
-            host_fe_ga_selection_crossover_mutate(cities_.data(),
-                                 static_cast<int>(cities_.size()),
-                                 n_population_,
-                                 crossover_rate_,
+            // GA step (selection + crossover + mutation) on GPU, operating purely on device buffers
+            host_fe_ga_selection_crossover_mutate(crossover_rate_,
                                  mutation_rate_,
                                  two_opt_passes_offspring_,
-                                 offspring_two_opt_prob_,
-                                 flat_pop.data(),
-                                 flat_dist.data(),
-                                 flat_next_pop.data(),
-                                 flat_next_dist.data());
+                                 offspring_two_opt_prob_);
 
-#if defined(CUDA_HYBRID_OMP)
-            #pragma omp parallel
-            {
-                std::mt19937 rng(
-                    static_cast<unsigned int>(
-                        std::chrono::high_resolution_clock::now().time_since_epoch().count()) +
-                    static_cast<unsigned int>(omp_get_thread_num() * 9973));
-                std::uniform_real_distribution<double> uni(0.0, 1.0);
+            // Optional extra 2-opt refinement pass on the offspring (GPU / CUDA)
+            host_fe_ga_2opt(two_opt_passes_offspring_, offspring_two_opt_prob_);
 
-                #pragma omp for schedule(dynamic, 2)
-                for (int i = 0; i < n_population_; ++i) {
-                    const size_t offset = static_cast<size_t>(i) * cities_.size();
-
-                    std::vector<int> chrom(
-                        flat_next_pop.begin() + static_cast<long>(offset),
-                        flat_next_pop.begin() + static_cast<long>(offset + cities_.size()));
-
-                    if (uni(rng) < offspring_two_opt_prob_) {
-                        chrom = two_opt(std::move(chrom), dist_matrix_, two_opt_passes_offspring_);
-                    }
-
-                    std::copy(chrom.begin(), chrom.end(),
-                              flat_next_pop.begin() + static_cast<long>(offset));
-                    flat_next_dist[static_cast<size_t>(i)] = total_distance(chrom, dist_matrix_);
-                }
-            }
-#else
-                // Optionally an extra 2-opt refinement pass on the offspring (GPU / CUDA)
-                host_fe_ga_2opt(cities_.data(),
-                                static_cast<int>(cities_.size()),
-                                n_population_,
-                                two_opt_passes_offspring_,
-                                offspring_two_opt_prob_,
-                                flat_next_pop.data(),
-                                flat_next_dist.data());
-#endif
-            // Unflatten back into next_population
-            for (int i = 0; i < n_population_; ++i) {
-                const size_t offset = static_cast<size_t>(i) * cities_.size();
-                next_population[i].chromosome.assign(
-                    flat_next_pop.begin() + static_cast<long>(offset),
-                    flat_next_pop.begin() + static_cast<long>(offset + cities_.size()));
-                next_population[i].distance = flat_next_dist[static_cast<size_t>(i)];
-            }
-
-            population_.swap(next_population);
-            const double best_dist = std::min_element(
-                                         population_.begin(), population_.end(),
-                                         [](const Individual& a, const Individual& b) { return a.distance < b.distance; })
-                                         ->distance;
-
-            if (gen % 100 == 0 || gen == n_generations_ - 1) {
+            if (gen % 1000 == 0 || gen == n_generations_ - 1) {
+                // Snapshot population from device only when needed for reporting
+                host_fe_ga_copy_population_to_host(flat_pop.data(), flat_dist.data());
+                const double best_dist = *std::min_element(flat_dist.begin(), flat_dist.end());
                 auto current_time = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> elapsed = current_time - start_time;
                 start_time = current_time;
                 std::cout << "Generation " << gen << " Best Distance: " << best_dist << " Time: " << elapsed.count() << "s" << std::endl;
             }
         }
+        // Final snapshot from device for reporting the best tour
+        host_fe_ga_copy_population_to_host(flat_pop.data(), flat_dist.data());
         host_fe_ga_free();
 
-        const auto best_it = std::min_element(
-            population_.begin(), population_.end(),
-            [](const Individual& a, const Individual& b) { return a.distance < b.distance; });
+        const auto best_it = std::min_element(flat_dist.begin(), flat_dist.end());
+        const int best_idx = static_cast<int>(std::distance(flat_dist.begin(), best_it));
+        const size_t route_offset = static_cast<size_t>(best_idx) * cities_.size();
 
-        std::cout << "Final Best Distance: " << best_it->distance << std::endl;
+        std::cout << "Final Best Distance: " << *best_it << std::endl;
         std::cout << "Best Route: ";
-        for (int idx : best_it->chromosome) {
-            std::cout << idx << " ";
+        for (size_t i = 0; i < cities_.size(); ++i) {
+            std::cout << flat_pop[route_offset + i] << " ";
         }
-        std::cout << best_it->chromosome.front() << std::endl; // close the tour
+        // close the tour
+        std::cout << flat_pop[route_offset] << std::endl;
     }
 
 private:
