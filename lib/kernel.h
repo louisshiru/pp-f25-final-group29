@@ -24,6 +24,8 @@ struct GA2OptConfig {
     double* d_distances;
     double* d_next_distances;
     City* d_cities;
+    // Precomputed dense distance matrix on device (row-major n_cities x n_cities)
+    double* d_dist_matrix;
     double* d_probs;
 };
 
