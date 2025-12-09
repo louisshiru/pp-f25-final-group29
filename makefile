@@ -1,5 +1,5 @@
 
-C_FLAG := -std=c++11 -O2 -fopenmp -Ilib -pg
+C_FLAG := -std=c++11 -O2 -fopenmp -Ilib -g
 
 # Genetic Algorithm
 GA_SRC := dataloader.cpp genetic.cpp

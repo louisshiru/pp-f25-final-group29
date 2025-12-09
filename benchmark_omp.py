@@ -43,7 +43,8 @@ def main() -> int:
         print("Invalid thread range", file=sys.stderr)
         return 1
 
-    threads_range = list(range(args.min_threads, args.max_threads + 1))
+    # threads_range = list(range(args.min_threads, args.max_threads + 1))
+    threads_range = [1,2,4,6,8,12]
     timings = []
 
     for t in threads_range:
@@ -55,6 +56,11 @@ def main() -> int:
             return 1
         timings.append(duration)
         print(f"  Time: {duration:.3f} s")
+
+    for i in range(len(threads_range)):
+        print(f"Running with {threads_range[i]} thread(s)...")
+        print(f"  Time: {timings[i]:.3f} s")
+    
 
     plt.figure()
     plt.plot(threads_range, timings, marker="o")
