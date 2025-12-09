@@ -27,6 +27,9 @@ struct GA2OptConfig {
     // Precomputed dense distance matrix on device (row-major n_cities x n_cities)
     double* d_dist_matrix;
     double* d_probs;
+
+    int* d_best_idx;
+    double* d_total_fitness;
 };
 
 // Host front-end for GPU 2-opt refinement; operates on raw arrays.
