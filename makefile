@@ -1,6 +1,6 @@
 C_FLAG := -std=c++11 -O2 -fopenmp -Ilib -pg
 MPICXX := mpicxx
-MPI_FLAG := -std=c++11 -O3 -Ilib
+MPI_FLAG := -std=c++11 -O2 -Ilib -pg
 
 # Genetic Algorithm
 GA_SRC := dataloader.cpp genetic.cpp
