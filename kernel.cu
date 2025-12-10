@@ -7,8 +7,14 @@
 #include <cstring>
 #include <iostream>
 #include <ctime>
+#include <algorithm>
+#include <vector>
+#include <utility>
 
 #define GEN_COLLECT_INTERVAL 100
+
+// Maximum cities supported for certain stack-allocated per-thread buffers.
+#define MAX_CITIES 4096
 
 // ======================== Cuda implementation ========================
 
@@ -87,24 +93,54 @@ __device__ void mutate_device(const GA2OptConfig& cfg, int* chrom, unsigned int&
 }
 
 __device__ void two_opt_device(const GA2OptConfig& cfg, int* route, int max_passes) {
-
     int n = cfg.n_cities;
     if (n < 4) return;
     bool improved = true;
     int passes = 0;
+    // Build inverse mapping: pos[city_id] -> position in route
+    int pos[MAX_CITIES];
+    for (int idx = 0; idx < n; ++idx) {
+        pos[route[idx]] = idx;
+    }
+
     while (improved && passes < max_passes) {
         improved = false;
-        for (int i = 1; i < n - 1 && !improved; ++i) {
-            for (int k = i + 1; k < n && !improved; ++k) {
-                int next = (k + 1 == n) ? 0 : (k + 1);
-                double delta =
-                    d_dist_lookup(cfg, route[i - 1], route[k]) +
-                    d_dist_lookup(cfg, route[i],     route[next]) -
-                    d_dist_lookup(cfg, route[i - 1], route[i]) -
-                    d_dist_lookup(cfg, route[k],     route[next]);
-                if (delta < -1e-9) {
-                    d_reverse_segment(route, i, k);
-                    improved = true;
+
+        // If no neighbor table provided, fallback to full scan
+        if (cfg.n_neighbors <= 0 || cfg.d_neighbors == nullptr) {
+            for (int i = 1; i < n - 1 && !improved; ++i) {
+                for (int k = i + 1; k < n && !improved; ++k) {
+                    int next = (k + 1 == n) ? 0 : (k + 1);
+                    double delta =
+                        d_dist_lookup(cfg, route[i - 1], route[k]) +
+                        d_dist_lookup(cfg, route[i],     route[next]) -
+                        d_dist_lookup(cfg, route[i - 1], route[i]) -
+                        d_dist_lookup(cfg, route[k],     route[next]);
+                    if (delta < -1e-9) {
+                        d_reverse_segment(route, i, k);
+                        improved = true;
+                    }
+                }
+            }
+        } else {
+            int nn = cfg.n_neighbors;
+            for (int i = 1; i < n - 1 && !improved; ++i) {
+                int city_a = route[i];
+                int base = city_a * nn;
+                for (int m = 0; m < nn && !improved; ++m) {
+                    int city_b = cfg.d_neighbors[base + m];
+                    int k = pos[city_b];
+                    if (k <= i) continue;
+                    int next = (k + 1 == n) ? 0 : (k + 1);
+                    double delta =
+                        d_dist_lookup(cfg, route[i - 1], route[k]) +
+                        d_dist_lookup(cfg, route[i],     route[next]) -
+                        d_dist_lookup(cfg, route[i - 1], route[i]) -
+                        d_dist_lookup(cfg, route[k],     route[next]);
+                    if (delta < -1e-9) {
+                        d_reverse_segment(route, i, k);
+                        improved = true;
+                    }
                 }
             }
         }
@@ -116,7 +152,6 @@ __device__ void crossover_device(const GA2OptConfig& cfg, unsigned int& state, c
     int cut1 = rand_int_device(state, 0, cfg.n_cities - 1);
     int cut2 = rand_int_device(state, 0, cfg.n_cities - 1);
     if (cut1 > cut2) { int t = cut1; cut1 = cut2; cut2 = t; }
-    const int MAX_CITIES = 4096;  // adjust if you ever need larger instances
     if (cfg.n_cities > MAX_CITIES) return;
     bool used[MAX_CITIES];
     auto create_child = [&](const int* pa, const int* pb, int* child) {
@@ -413,6 +448,7 @@ void host_fe_ga_allocate(const City* cities,
     if (g_cfg.d_distances)      cudaFree(g_cfg.d_distances);
     if (g_cfg.d_population)     cudaFree(g_cfg.d_population);
     if (g_cfg.d_dist_matrix)    cudaFree(g_cfg.d_dist_matrix);
+    if (g_cfg.d_neighbors)      cudaFree(g_cfg.d_neighbors);
     if (g_cfg.d_cities)         cudaFree(g_cfg.d_cities);
     if (g_cfg.d_best_idx)       cudaFree(g_cfg.d_best_idx);
     if (g_cfg.d_total_fitness)  cudaFree(g_cfg.d_total_fitness);
@@ -448,6 +484,36 @@ void host_fe_ga_allocate(const City* cities,
     cudaMalloc(&g_cfg.d_dist_matrix, dist_matrix_bytes);
     cudaMemcpy(g_cfg.d_dist_matrix, h_dist_matrix.data(), dist_matrix_bytes, cudaMemcpyHostToDevice);
 
+    // Build nearest-neighbor candidate list on host and copy to device.
+    // Use up to M neighbors per city (exclude self).
+    int M = std::min(8, n_cities - 1);
+    if (M < 0) M = 0;
+    g_cfg.n_neighbors = M;
+    if (M > 0) {
+        std::vector<int> h_neighbors(static_cast<size_t>(n_cities) * static_cast<size_t>(M));
+        for (int i = 0; i < n_cities; ++i) {
+            std::vector<std::pair<double,int>> cand;
+            cand.reserve(n_cities - 1);
+            for (int j = 0; j < n_cities; ++j) {
+                if (j == i) continue;
+                cand.emplace_back(h_dist_matrix[static_cast<size_t>(i) * static_cast<size_t>(n_cities) + static_cast<size_t>(j)], j);
+            }
+            if ((int)cand.size() > M) {
+                std::partial_sort(cand.begin(), cand.begin() + M, cand.end(), [](const std::pair<double,int>& a, const std::pair<double,int>& b){ return a.first < b.first; });
+            } else {
+                std::sort(cand.begin(), cand.end(), [](const std::pair<double,int>& a, const std::pair<double,int>& b){ return a.first < b.first; });
+            }
+            for (int m = 0; m < M; ++m) {
+                h_neighbors[static_cast<size_t>(i) * static_cast<size_t>(M) + static_cast<size_t>(m)] = cand[m].second;
+            }
+        }
+        cudaMalloc(&g_cfg.d_neighbors, static_cast<size_t>(n_cities) * static_cast<size_t>(M) * sizeof(int));
+        cudaMemcpy(g_cfg.d_neighbors, h_neighbors.data(), static_cast<size_t>(n_cities) * static_cast<size_t>(M) * sizeof(int), cudaMemcpyHostToDevice);
+    } else {
+        g_cfg.d_neighbors = nullptr;
+        g_cfg.n_neighbors = 0;
+    }
+
     cudaMalloc(&g_cfg.d_population, pop_bytes);
     cudaMalloc(&g_cfg.d_next_population, pop_bytes);
     cudaMalloc(&g_cfg.d_distances, dist_bytes);
@@ -468,6 +534,7 @@ void host_fe_ga_free()
     if (g_cfg.d_distances)      cudaFree(g_cfg.d_distances);
     if (g_cfg.d_population)     cudaFree(g_cfg.d_population);
     if (g_cfg.d_dist_matrix)    cudaFree(g_cfg.d_dist_matrix);
+    if (g_cfg.d_neighbors)      cudaFree(g_cfg.d_neighbors);
     if (g_cfg.d_cities)         cudaFree(g_cfg.d_cities);
     if (g_cfg.d_best_idx)       cudaFree(g_cfg.d_best_idx);
     if (g_cfg.d_total_fitness)  cudaFree(g_cfg.d_total_fitness);
