@@ -97,6 +97,7 @@ __device__ void two_opt_device(const GA2OptConfig& cfg, int* route, int max_pass
     if (n < 4) return;
     bool improved = true;
     int passes = 0;
+#ifdef KNEAREST_NEIGHBORS
     // Build inverse mapping: pos[city_id] -> position in route
     int pos[MAX_CITIES];
     for (int idx = 0; idx < n; ++idx) {
@@ -146,6 +147,27 @@ __device__ void two_opt_device(const GA2OptConfig& cfg, int* route, int max_pass
         }
         ++passes;
     }
+#else
+    // Simple 2-opt without neighbor list
+    while (improved && passes < max_passes) {
+        improved = false;
+        for (int i = 1; i < n - 1 && !improved; ++i) {
+            for (int k = i + 1; k < n && !improved; ++k) {
+                int next = (k + 1 == n) ? 0 : (k + 1);
+                double delta =
+                    d_dist_lookup(cfg, route[i - 1], route[k]) +
+                    d_dist_lookup(cfg, route[i],     route[next]) -
+                    d_dist_lookup(cfg, route[i - 1], route[i]) -
+                    d_dist_lookup(cfg, route[k],     route[next]);
+                if (delta < -1e-9) {
+                    d_reverse_segment(route, i, k);
+                    improved = true;
+                }
+            }
+        }
+        ++passes;
+    }
+#endif
 }
 
 __device__ void crossover_device(const GA2OptConfig& cfg, unsigned int& state, const int* p1, const int* p2, int* c1, int* c2) {
@@ -484,6 +506,7 @@ void host_fe_ga_allocate(const City* cities,
     cudaMalloc(&g_cfg.d_dist_matrix, dist_matrix_bytes);
     cudaMemcpy(g_cfg.d_dist_matrix, h_dist_matrix.data(), dist_matrix_bytes, cudaMemcpyHostToDevice);
 
+#ifdef KNEAREST_NEIGHBORS
     // Build nearest-neighbor candidate list on host and copy to device.
     // Use up to M neighbors per city (exclude self).
     int M = std::min(8, n_cities - 1);
@@ -513,6 +536,8 @@ void host_fe_ga_allocate(const City* cities,
         g_cfg.d_neighbors = nullptr;
         g_cfg.n_neighbors = 0;
     }
+
+#endif
 
     cudaMalloc(&g_cfg.d_population, pop_bytes);
     cudaMalloc(&g_cfg.d_next_population, pop_bytes);

@@ -40,8 +40,8 @@ GA2_CUDA_FLAG := -Ilib -std=c++11 -O2 -arch=sm_61 -lgomp
 
 # Enable CUDA_HYBRID_OMP only when requested, e.g.:
 #   make GA2_CUDA_TARGET CUDA_HYBRID_OMP=True
-ifeq ($(CUDA_HYBRID_OMP),True)
-C_FLAG += -DCUDA_HYBRID_OMP
+ifeq ($(KNEAREST_NEIGHBORS),True)
+GA2_CUDA_FLAG += -DKNEAREST_NEIGHBORS
 endif
 
 GPROF_RESULT := gmon.out profiling_result
