@@ -30,6 +30,9 @@ struct GA2OptConfig {
 
     int* d_best_idx;
     double* d_total_fitness;
+    // Nearest-neighbor candidate list (device): linearized as [n_cities][n_neighbors]
+    int n_neighbors;
+    int* d_neighbors;
 };
 
 // Host front-end for GPU 2-opt refinement; operates on raw arrays.
