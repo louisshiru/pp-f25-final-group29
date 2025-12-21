@@ -260,18 +260,27 @@ int main(int argc, char** argv) {
     MPI_Barrier(MPI_COMM_WORLD);
     double total_start_time = MPI_Wtime();
 
-    const std::string dataset = (argc > 1) ? argv[1] : "qa194.tsp";
+    // const std::string dataset = (argc > 1) ? argv[1] : "qa194.tsp";
+    // const int total_population = 8192;
+    // const int local_offspring_count = total_population / size;
+    // const int n_generations = 3000;
+    // const double crossover_rate = 0.8;
+    // const double mutation_rate = 0.2;
+    // const double init_two_opt_prob = 1.0;         
+    // const double offspring_two_opt_prob = 1.0;    
+    // const int two_opt_passes_init = 100;          
+    // const int two_opt_passes_offspring = 2;     
+
+    const std::string dataset = (argc > 1) ? argv[1] : "zi929.tsp";
     const int total_population = 8192;
-    const int local_offspring_count = total_population / size;
-    const int n_generations = 3000;
-    
-    // GA Parameters
+    const int local_offspring_count = total_population / size; 
+    const int n_generations = 8000;
     const double crossover_rate = 0.8;
     const double mutation_rate = 0.2;
-    const double init_two_opt_prob = 1.0;         
-    const double offspring_two_opt_prob = 1.0;    
-    const int two_opt_passes_init = 100;          
-    const int two_opt_passes_offspring = 2;     
+    const double init_two_opt_prob = 1.0;
+    const double offspring_two_opt_prob = 1.0;
+    const int two_opt_passes_init = 100;
+    const int two_opt_passes_offspring = 2;
 
     try {
         Dataloader dl(dataset);

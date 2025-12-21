@@ -270,21 +270,30 @@ int main(int argc, char** argv) {
     MPI_Barrier(MPI_COMM_WORLD);
     double total_start_time = MPI_Wtime();
 
-    const std::string dataset = (argc > 1) ? argv[1] : "qa194.tsp";
+    // const std::string dataset = (argc > 1) ? argv[1] : "qa194.tsp";
+    // const int total_population_target = 8192;
+    // const int local_pop_size = total_population_target / size; 
+    // const int n_generations = 3000;
+    // const double crossover_rate = 0.8;
+    // const double mutation_rate = 0.2;
+    // const double init_two_opt_prob = 1.0;         
+    // const double offspring_two_opt_prob = 1.0;    
+    // const int two_opt_passes_init = 100;          
+    // const int two_opt_passes_offspring = 2;     
+
+    const std::string dataset = (argc > 1) ? argv[1] : "zi929.tsp";
     const int total_population_target = 8192;
     const int local_pop_size = total_population_target / size; 
-    const int n_generations = 3000;
-    
-    const int migration_interval = 200; 
-    const int migration_count = 50; 
-
-    // GA Parameters
+    const int n_generations = 8000;
     const double crossover_rate = 0.8;
     const double mutation_rate = 0.2;
-    const double init_two_opt_prob = 1.0;         
-    const double offspring_two_opt_prob = 1.0;    
-    const int two_opt_passes_init = 100;          
-    const int two_opt_passes_offspring = 2;     
+    const double init_two_opt_prob = 1.0;
+    const double offspring_two_opt_prob = 1.0;
+    const int two_opt_passes_init = 100;
+    const int two_opt_passes_offspring = 2;
+
+    const int migration_interval = 200; 
+    const int migration_count = 50; 
 
     try {
         Dataloader dl(dataset);
@@ -345,13 +354,21 @@ int main(int argc, char** argv) {
         local_res.value = final_local_best_it->distance;
         local_res.rank = rank;
 
-        // [Time] Final Communication
+        // [Time] Final Communication (Allreduce)
         double reduce_start = MPI_Wtime();
         MPI_Allreduce(&local_res, &global_res, 1, MPI_DOUBLE_INT, MPI_MINLOC, MPI_COMM_WORLD);
         double reduce_end = MPI_Wtime();
         total_comm_time += (reduce_end - reduce_start);
 
-        MPI_Barrier(MPI_COMM_WORLD);
+        // --- [修正開始] 測量最後的同步等待時間 ---
+        double barrier_start = MPI_Wtime();
+        MPI_Barrier(MPI_COMM_WORLD); 
+        double barrier_end = MPI_Wtime();
+        
+        // 將這段等待時間也加入通訊/同步成本
+        total_comm_time += (barrier_end - barrier_start);
+        // --- [修正結束] ---
+
         double parallel_end_time = MPI_Wtime();
         double total_end_time = MPI_Wtime();
 
@@ -364,7 +381,7 @@ int main(int argc, char** argv) {
             double comm_percent = (total_comm_time / parallel_time) * 100.0;
             double comp_percent = (computation_time / parallel_time) * 100.0;
 
-            std::cout << "\n=== Island Model Performance (Binary Search) ===" << std::endl;
+            std::cout << "\n=== Island Model Performance ===" << std::endl;
             std::cout << "Total Execution Time:       " << total_time << " s" << std::endl;
             std::cout << "Serial (Init/IO) Time:      " << serial_time << " s" << std::endl;
             std::cout << "--------------------------------------------" << std::endl;
