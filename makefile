@@ -1,5 +1,6 @@
-
 C_FLAG := -std=c++11 -O2 -fopenmp -Ilib -pg
+MPICXX := mpicxx
+MPI_FLAG := -std=c++11 -O2 -Ilib -pg
 
 # Genetic Algorithm
 GA_SRC := dataloader.cpp genetic.cpp
@@ -30,6 +31,16 @@ GA2_OMP_SRC := ga_2opt_omp.cpp dataloader.cpp
 GA2_OMP_OBJ := $(GA2_OMP_SRC:.cpp=.o)
 GA2_OMP_TARGET := tsp_ga2opt_omp
 
+# mpi
+GA2_MPI_SRC := ga_2opt_mpi.cc
+GA2_MPI_OBJ := $(GA2_MPI_SRC:.cc=.o) dataloader.o
+GA2_MPI_TARGET := tsp_ga2opt_mpi
+
+# mpi(island)
+GA2_MPI_ISLAND_SRC := ga_2opt_mpi_island.cc
+GA2_MPI_ISLAND_OBJ := $(GA2_MPI_ISLAND_SRC:.cc=.o) dataloader.o
+GA2_MPI_ISLAND_TARGET := tsp_ga2opt_mpi_island
+
 # GA + 2-opt cuda
 # Host-side GA implementation in C++ and CUDA kernels in separate .cu
 GA2_CUDA_SRC := dataloader.cpp ga_2opt_cuda.cpp
@@ -46,7 +57,7 @@ endif
 
 GPROF_RESULT := gmon.out profiling_result
 
-all: $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET) $(ACO_TARGET) $(GA2_TARGET) $(GA2_OMP_TARGET) $(GA2_CUDA_TARGET)
+all: $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET) $(ACO_TARGET) $(GA2_TARGET) $(GA2_OMP_TARGET) $(GA2_MPI_TARGET) $(GA2_MPI_ISLAND_TARGET) $(GA2_CUDA_TARGET)
 
 $(GA_TARGET): $(GA_OBJ)
 	g++ $(C_FLAG) -o $@ $^
@@ -66,14 +77,23 @@ $(GA2_TARGET): $(GA2_OBJ)
 $(GA2_OMP_TARGET): $(GA2_OMP_OBJ)
 	g++ $(C_FLAG) -o $@ $^
 
+$(GA2_MPI_TARGET): $(GA2_MPI_OBJ)
+	$(MPICXX) $(MPI_FLAG) -o $@ $^
+
+$(GA2_MPI_ISLAND_TARGET): $(GA2_MPI_ISLAND_OBJ)
+	$(MPICXX) $(MPI_FLAG) -o $@ $^
+	
 $(GA2_CUDA_TARGET): $(GA2_CUDA_OBJ) 
 	nvcc $(GA2_CUDA_FLAG) -o $@ $^
 
 %.o: %.cu
 	nvcc $(GA2_CUDA_FLAG) -c $< -o $@
 
+%.o: %.cc
+	$(MPICXX) $(MPI_FLAG) -c $< -o $@
+
 %.o: %.cpp
 	g++ $(C_FLAG) -c $< -o $@
 
 clean:
-	rm -f *.o $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET) $(ACO_TARGET) $(GA2_TARGET) $(GA2_OMP_TARGET) $(GA2_CUDA_TARGET) $(GPROF_RESULT)
+	rm -f *.o $(GA_TARGET) $(2OPT_TARGET) $(LKH_TARGET) $(ACO_TARGET) $(GA2_TARGET) $(GA2_OMP_TARGET) $(GA2_MPI_TARGET) $(GA2_MPI_ISLAND_TARGET) $(GA2_CUDA_TARGET) $(GPROF_RESULT)

@@ -38,6 +38,14 @@ make tsp_ga2opt_omp && ./tsp_ga2opt_omp # Default use qa194.tsp (Qatar - 194 cit
 make tsp_ga2opt_omp && ./tsp_ga2opt_omp mu1979.tsp # Select mu1979.tsp  (Oman - 1,979 Cities)
 ```
 
+### Run Genetic Algorithm + 2opt (MPI)
+```bash
+make clean && make tsp_ga2opt_mpi && run --mpi=pmix -N 1 -n 12 -- ./tsp_ga2opt_mpi # Default use qa194.tsp (Qatar - 194 cities)
+make clean && make tsp_ga2opt_mpi && run --mpi=pmix -N 1 -n 12 -- ./tsp_ga2opt_mpi mu1979.tsp # Select mu1979.tsp  (Oman - 1,979 Cities)
+make make tsp_ga2opt_mpi_island && run --mpi=pmix -N 8 -n 8 -- ./tsp_ga2opt_mpi_island # Default use qa194.tsp (Qatar - 194 cities)
+make make tsp_ga2opt_mpi_island && run --mpi=pmix -N 8 -n 8 -- ./tsp_ga2opt_mpi_island mu1979.tsp # Select mu1979.tsp  (Oman - 1,979 Cities)
+```
+
 ### Run 2-opt 
 Run the brute force approach (Correct/Exact Answer):
 ```bash
@@ -61,5 +69,3 @@ make clean
 
 Dataset from:
 [Solving TSPs](https://www.math.uwaterloo.ca/tsp/world/countries.html)
-
-可以搜尋關鍵字 `[TODO]` 應該是優化這兩個地方就可以了 ?????
