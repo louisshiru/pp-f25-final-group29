@@ -8,6 +8,8 @@ We provide two solvers:
 2.  **Brute Force (`tsp_bf`)**: An exact method to find the optimal solution, used for verification.
 3.  **GA + 2-opt (`tsp_ga2opt`)**: GA with local 2-opt refinement.
 4.  **GA + 2-opt (OpenMP) (`tsp_ga2opt_omp`)**: Parallelized GA + 2-opt using OpenMP.
+5.  **GA + 2-opt (MPI:Master-Slave) (`ga_2opt_mpi`)**: Parallelized GA + 2-opt using MPI with Master-Slave Model.
+6.  **GA + 2-opt (MPI:Island) (`ga_2opt_mpi_island`)**: Parallelized GA + 2-opt using MPI with Island Model.
 
 ## Usage
 
