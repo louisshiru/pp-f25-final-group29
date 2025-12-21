@@ -10,6 +10,8 @@ We provide two solvers:
 4.  **GA + 2-opt (OpenMP) (`tsp_ga2opt_omp`)**: Parallelized GA + 2-opt using OpenMP.
 5.  **GA + 2-opt (MPI:Master-Slave) (`ga_2opt_mpi`)**: Parallelized GA + 2-opt using MPI with Master-Slave Model.
 6.  **GA + 2-opt (MPI:Island) (`ga_2opt_mpi_island`)**: Parallelized GA + 2-opt using MPI with Island Model.
+7.  **CUDA + 2-opt (Full GA in GPU) (`ga_2opt_cuda.cpp`)**: Parallelized GA + 2-opt with FULL GA.
+8.  **CUDA + 2-opt (Full GA in GPU and k-nearest) (`ga_2opt_cuda.cpp`)**: Parallelized GA + 2-opt with FULL GA, k-nearest list.
 
 ## Usage
 
@@ -46,6 +48,14 @@ make clean && make tsp_ga2opt_mpi && run --mpi=pmix -N 1 -n 12 -- ./tsp_ga2opt_m
 make clean && make tsp_ga2opt_mpi && run --mpi=pmix -N 1 -n 12 -- ./tsp_ga2opt_mpi mu1979.tsp # Select mu1979.tsp  (Oman - 1,979 Cities)
 make make tsp_ga2opt_mpi_island && run --mpi=pmix -N 8 -n 8 -- ./tsp_ga2opt_mpi_island # Default use qa194.tsp (Qatar - 194 cities)
 make make tsp_ga2opt_mpi_island && run --mpi=pmix -N 8 -n 8 -- ./tsp_ga2opt_mpi_island mu1979.tsp # Select mu1979.tsp  (Oman - 1,979 Cities)
+```
+
+### Run Genetic Algorithm + 2opt (CUDA)
+```bash
+make clean && make tsp_ga2opt_cuda KNEAREST_NEIGHBORS=True && run -- time ./tsp_ga2opt_cuda # Default use qa194.tsp (Qatar - 194 cities)
+make clean && make tsp_ga2opt_cuda KNEAREST_NEIGHBORS=True && run -- time ./tsp_ga2opt_cuda mu1979.tsp # Select mu1979.tsp  (Oman - 1,979 Cities)
+make clean && make tsp_ga2opt_cuda KNEAREST_NEIGHBORS=False && run -- time ./tsp_ga2opt_cuda # Default use qa194.tsp (Qatar - 194 cities)
+make clean && make tsp_ga2opt_cuda KNEAREST_NEIGHBORS=False && run -- time ./tsp_ga2opt_cuda mu1979.tsp # Select mu1979.tsp  (Oman - 1,979 Cities)
 ```
 
 ### Run 2-opt 
