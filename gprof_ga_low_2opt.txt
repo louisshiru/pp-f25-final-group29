@@ -1,0 +1,155 @@
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 57.31     21.25    21.25 19659974     0.00     0.00  GA2Opt::crossover(Individual const&, Individual const&)::{lambda(std::vector<int, std::allocator<int> > const&, std::vector<int, std::allocator<int> > const&)#1}::operator()(std::vector<int, std::allocator<int> > const&, std::vector<int, std::allocator<int> > const&) const
+ 24.89     30.48     9.23 24584192     0.00     0.00  total_distance(std::vector<int, std::allocator<int> > const&, DistanceMatrix const&)
+ 12.49     35.11     4.63 54074534     0.00     0.00  two_opt(std::vector<int, std::allocator<int> >, DistanceMatrix const&, int)
+  3.86     36.54     1.43      233     0.01     0.16  GA2Opt::run()
+  0.46     36.71     0.17 24576000     0.00     0.00  GA2Opt::mutate_and_local_search(Individual)
+  0.43     36.87     0.16 202333350     0.00     0.00  std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()()
+  0.24     36.96     0.09  9829987     0.00     0.00  GA2Opt::crossover(Individual const&, Individual const&)
+  0.19     37.03     0.07   324253     0.00     0.00  std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::_M_gen_rand()
+  0.11     37.07     0.04                             _init
+  0.03     37.08     0.01 24579004     0.00     0.00  frame_dummy
+  0.00     37.08     0.00     8192     0.00     0.00  void std::shuffle<__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>&>(__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, __gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>&)
+  0.00     37.08     0.00     3000     0.00     0.00  std::vector<Individual, std::allocator<Individual> >::_M_fill_assign(unsigned long, Individual const&)
+  0.00     37.08     0.00        3     0.00     0.00  void std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >::_M_realloc_insert<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >(__gnu_cxx::__normal_iterator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&&)
+  0.00     37.08     0.00        1     0.00    36.88  Dataloader::Dataloader(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+  0.00     37.08     0.00        1     0.00    35.92  (anonymous namespace)::load_tsplib(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+  0.00     37.08     0.00        1     0.00     0.95  (anonymous namespace)::resolve_dataset_path(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+  0.00     37.08     0.00        1     0.00     0.00  GA2Opt::initial_population()
+  0.00     37.08     0.00        1     0.00     0.00  GA2Opt::GA2Opt(std::vector<City, std::allocator<City> > const&, int, int, double, double, double, double, int, int)
+  0.00     37.08     0.00        1     0.00     0.00  GA2Opt::~GA2Opt()
+  0.00     37.08     0.00        1     0.00     0.00  std::vector<City, std::allocator<City> >::~vector()
+  0.00     37.08     0.00        1     0.00     0.00  std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >* std::__do_uninit_copy<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*)
+
+			Call graph
+
+
+granularity: each sample hit covers 4 byte(s) for 0.03% of 37.08 seconds
+
+index % time    self  children    called     name
+                                                 <spontaneous>
+[1]     99.9    0.00   37.04                 main [1]
+                0.00   36.88       1/1           Dataloader::Dataloader(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [3]
+                0.01    0.15       1/233         GA2Opt::run() [2]
+                0.00    0.00       1/1           GA2Opt::GA2Opt(std::vector<City, std::allocator<City> > const&, int, int, double, double, double, double, int, int) [16]
+                0.00    0.00       3/24579004     frame_dummy [14]
+                0.00    0.00       1/1           std::vector<City, std::allocator<City> >::~vector() [26]
+                0.00    0.00       1/1           GA2Opt::~GA2Opt() [25]
+-----------------------------------------------
+                0.01    0.15       1/233         main [1]
+                0.04    0.92       6/233         (anonymous namespace)::resolve_dataset_path(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [10]
+                1.39   34.54     226/233         (anonymous namespace)::load_tsplib(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [4]
+[2]     99.9    1.43   35.61     233         GA2Opt::run() [2]
+                0.09   22.95 9829987/9829987     GA2Opt::crossover(Individual const&, Individual const&) [5]
+                0.17   12.31 24576000/24576000     GA2Opt::mutate_and_local_search(Individual) [7]
+                0.06    0.03 73728000/202333350     std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()() [11]
+                0.00    0.01    3000/3000        std::vector<Individual, std::allocator<Individual> >::_M_fill_assign(unsigned long, Individual const&) [15]
+                0.00    0.00    3000/24579004     frame_dummy [14]
+-----------------------------------------------
+                0.00   36.88       1/1           main [1]
+[3]     99.5    0.00   36.88       1         Dataloader::Dataloader(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [3]
+                0.00   35.92       1/1           (anonymous namespace)::load_tsplib(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [4]
+                0.00    0.95       1/1           (anonymous namespace)::resolve_dataset_path(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [10]
+-----------------------------------------------
+                0.00   35.92       1/1           Dataloader::Dataloader(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [3]
+[4]     96.9    0.00   35.92       1         (anonymous namespace)::load_tsplib(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [4]
+                1.39   34.54     226/233         GA2Opt::run() [2]
+-----------------------------------------------
+                0.09   22.95 9829987/9829987     GA2Opt::run() [2]
+[5]     62.1    0.09   22.95 9829987         GA2Opt::crossover(Individual const&, Individual const&) [5]
+               21.25    0.00 19659974/19659974     GA2Opt::crossover(Individual const&, Individual const&)::{lambda(std::vector<int, std::allocator<int> > const&, std::vector<int, std::allocator<int> > const&)#1}::operator()(std::vector<int, std::allocator<int> > const&, std::vector<int, std::allocator<int> > const&) const [6]
+                1.68    0.01 19659974/54074534     two_opt(std::vector<int, std::allocator<int> >, DistanceMatrix const&, int) [9]
+-----------------------------------------------
+               21.25    0.00 19659974/19659974     GA2Opt::crossover(Individual const&, Individual const&) [5]
+[6]     57.3   21.25    0.00 19659974         GA2Opt::crossover(Individual const&, Individual const&)::{lambda(std::vector<int, std::allocator<int> > const&, std::vector<int, std::allocator<int> > const&)#1}::operator()(std::vector<int, std::allocator<int> > const&, std::vector<int, std::allocator<int> > const&) const [6]
+-----------------------------------------------
+                0.17   12.31 24576000/24576000     GA2Opt::run() [2]
+[7]     33.6    0.17   12.31 24576000         GA2Opt::mutate_and_local_search(Individual) [7]
+                9.23    0.00 24576000/24584192     total_distance(std::vector<int, std::allocator<int> > const&, DistanceMatrix const&) [8]
+                2.95    0.02 34406368/54074534     two_opt(std::vector<int, std::allocator<int> >, DistanceMatrix const&, int) [9]
+                0.08    0.03 98304000/202333350     std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()() [11]
+-----------------------------------------------
+                0.00    0.00    8192/24584192     GA2Opt::initial_population() [17]
+                9.23    0.00 24576000/24584192     GA2Opt::mutate_and_local_search(Individual) [7]
+[8]     24.9    9.23    0.00 24584192         total_distance(std::vector<int, std::allocator<int> > const&, DistanceMatrix const&) [8]
+-----------------------------------------------
+                0.00    0.00    8192/54074534     GA2Opt::initial_population() [17]
+                1.68    0.01 19659974/54074534     GA2Opt::crossover(Individual const&, Individual const&) [5]
+                2.95    0.02 34406368/54074534     GA2Opt::mutate_and_local_search(Individual) [7]
+[9]     12.6    4.63    0.03 54074534         two_opt(std::vector<int, std::allocator<int> >, DistanceMatrix const&, int) [9]
+                0.02    0.01 29490342/202333350     std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()() [11]
+-----------------------------------------------
+                0.00    0.95       1/1           Dataloader::Dataloader(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [3]
+[10]     2.6    0.00    0.95       1         (anonymous namespace)::resolve_dataset_path(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [10]
+                0.04    0.92       6/233         GA2Opt::run() [2]
+                0.00    0.00       3/3           void std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >::_M_realloc_insert<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >(__gnu_cxx::__normal_iterator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&&) [24]
+                0.00    0.00       1/1           std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >* std::__do_uninit_copy<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*) [27]
+-----------------------------------------------
+                              794626             std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()() [11]
+                0.00    0.00   16384/202333350     GA2Opt::initial_population() [17]
+                0.00    0.00  794624/202333350     void std::shuffle<__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>&>(__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, __gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>&) [18]
+                0.02    0.01 29490342/202333350     two_opt(std::vector<int, std::allocator<int> >, DistanceMatrix const&, int) [9]
+                0.06    0.03 73728000/202333350     GA2Opt::run() [2]
+                0.08    0.03 98304000/202333350     GA2Opt::mutate_and_local_search(Individual) [7]
+[11]     0.6    0.16    0.07 202333350+794626  std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()() [11]
+                0.07    0.00  324253/324253      std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::_M_gen_rand() [12]
+                              794626             std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()() [11]
+-----------------------------------------------
+                0.07    0.00  324253/324253      std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()() [11]
+[12]     0.2    0.07    0.00  324253         std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::_M_gen_rand() [12]
+-----------------------------------------------
+                                                 <spontaneous>
+[13]     0.1    0.04    0.00                 _init [13]
+-----------------------------------------------
+                0.00    0.00       1/24579004     GA2Opt::GA2Opt(std::vector<City, std::allocator<City> > const&, int, int, double, double, double, double, int, int) [16]
+                0.00    0.00       3/24579004     main [1]
+                0.00    0.00    3000/24579004     GA2Opt::run() [2]
+                0.01    0.00 24576000/24579004     std::vector<Individual, std::allocator<Individual> >::_M_fill_assign(unsigned long, Individual const&) [15]
+[14]     0.0    0.01    0.00 24579004         frame_dummy [14]
+-----------------------------------------------
+                0.00    0.01    3000/3000        GA2Opt::run() [2]
+[15]     0.0    0.00    0.01    3000         std::vector<Individual, std::allocator<Individual> >::_M_fill_assign(unsigned long, Individual const&) [15]
+                0.01    0.00 24576000/24579004     frame_dummy [14]
+-----------------------------------------------
+                0.00    0.00       1/1           main [1]
+[16]     0.0    0.00    0.00       1         GA2Opt::GA2Opt(std::vector<City, std::allocator<City> > const&, int, int, double, double, double, double, int, int) [16]
+                0.00    0.00       1/1           GA2Opt::initial_population() [17]
+                0.00    0.00       1/24579004     frame_dummy [14]
+-----------------------------------------------
+                0.00    0.00       1/1           GA2Opt::GA2Opt(std::vector<City, std::allocator<City> > const&, int, int, double, double, double, double, int, int) [16]
+[17]     0.0    0.00    0.00       1         GA2Opt::initial_population() [17]
+                0.00    0.00    8192/24584192     total_distance(std::vector<int, std::allocator<int> > const&, DistanceMatrix const&) [8]
+                0.00    0.00    8192/8192        void std::shuffle<__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>&>(__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, __gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>&) [18]
+                0.00    0.00    8192/54074534     two_opt(std::vector<int, std::allocator<int> >, DistanceMatrix const&, int) [9]
+                0.00    0.00   16384/202333350     std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()() [11]
+-----------------------------------------------
+                0.00    0.00    8192/8192        GA2Opt::initial_population() [17]
+[18]     0.0    0.00    0.00    8192         void std::shuffle<__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>&>(__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, __gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>&) [18]
+                0.00    0.00  794624/202333350     std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()() [11]
+-----------------------------------------------
+                0.00    0.00       3/3           (anonymous namespace)::resolve_dataset_path(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [10]
+[24]     0.0    0.00    0.00       3         void std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >::_M_realloc_insert<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >(__gnu_cxx::__normal_iterator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&&) [24]
+-----------------------------------------------
+                0.00    0.00       1/1           main [1]
+[25]     0.0    0.00    0.00       1         GA2Opt::~GA2Opt() [25]
+-----------------------------------------------
+                0.00    0.00       1/1           main [1]
+[26]     0.0    0.00    0.00       1         std::vector<City, std::allocator<City> >::~vector() [26]
+-----------------------------------------------
+                0.00    0.00       1/1           (anonymous namespace)::resolve_dataset_path(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [10]
+[27]     0.0    0.00    0.00       1         std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >* std::__do_uninit_copy<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*) [27]
+-----------------------------------------------
+
+Index by function name
+
+   [8] total_distance(std::vector<int, std::allocator<int> > const&, DistanceMatrix const&) [2] GA2Opt::run() [26] std::vector<City, std::allocator<City> >::~vector()
+   [9] two_opt(std::vector<int, std::allocator<int> >, DistanceMatrix const&, int) [5] GA2Opt::crossover(Individual const&, Individual const&) [24] void std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >::_M_realloc_insert<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >(__gnu_cxx::__normal_iterator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*, std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > >, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&&)
+   [3] Dataloader::Dataloader(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [16] GA2Opt::GA2Opt(std::vector<City, std::allocator<City> > const&, int, int, double, double, double, double, int, int) [27] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >* std::__do_uninit_copy<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*)
+   [4] (anonymous namespace)::load_tsplib(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [25] GA2Opt::~GA2Opt() [18] void std::shuffle<__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>&>(__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, __gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>&)
+  [10] (anonymous namespace)::resolve_dataset_path(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [12] std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::_M_gen_rand() [6] GA2Opt::crossover(Individual const&, Individual const&)::{lambda(std::vector<int, std::allocator<int> > const&, std::vector<int, std::allocator<int> > const&)#1}::operator()(std::vector<int, std::allocator<int> > const&, std::vector<int, std::allocator<int> > const&) const
+  [17] GA2Opt::initial_population() [11] std::mersenne_twister_engine<unsigned long, 32ul, 624ul, 397ul, 31ul, 2567483615ul, 11ul, 4294967295ul, 7ul, 2636928640ul, 15ul, 4022730752ul, 18ul, 1812433253ul>::operator()() [13] _init
+   [7] GA2Opt::mutate_and_local_search(Individual) [15] std::vector<Individual, std::allocator<Individual> >::_M_fill_assign(unsigned long, Individual const&) [14] frame_dummy

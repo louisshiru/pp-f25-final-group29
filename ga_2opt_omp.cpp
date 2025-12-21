@@ -318,13 +318,16 @@ private:
 int main(int argc, char** argv) {
     const std::string dataset = (argc > 1) ? argv[1] : "qa194.tsp";
     const int n_population = 8192;   // Slightly smaller because 2-opt is heavier
+    // const int n_population = 100;   // Slightly smaller because 2-opt is heavier
     const int n_generations = 3000; // You can tune these values as needed
     const double crossover_rate = 0.8;
     const double mutation_rate = 0.2;
     const double init_two_opt_prob = 1.0;         // probability to refine an initial individual
     const double offspring_two_opt_prob = 1.0;    // probability to refine a child each generation
+    // const double offspring_two_opt_prob = 0.1;    // probability to refine a child each generation
     const int two_opt_passes_init = 100;          // cap 2-opt passes for initial population
     const int two_opt_passes_offspring = 2;      // cap 2-opt passes for offspring
+    // const int two_opt_passes_offspring = 50;      // cap 2-opt passes for offspring
 
     try {
         Dataloader dl(dataset);
